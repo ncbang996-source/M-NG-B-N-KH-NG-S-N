@@ -18,8 +18,8 @@ jobs:
       - name: Kiểm tra dựng bản vẽ mẫu
         run: python tests/smoke.py
       - name: Đóng gói exe
-        run: pyinstaller --noconfirm VeMongBan.spec
+        run: pyinstaller --noconfirm VE_MONGBANKOSUON.spec
       - uses: actions/upload-artifact@v4
         with:
-          name: VeMongBan-exe
-          path: dist/VeMongBan.exe
+          name: VE_MONGBANKOSUON-exe
+          path: dist/VE_MONGBANKOSUON.exe

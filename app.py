@@ -13,15 +13,15 @@ import tkinter as tk
 import traceback
 from tkinter import filedialog, messagebox, ttk
 
-from mongban import cad, export, frame, model
+from mongban import cad, export, frame, kl_excel, model
 
-APP_NAME = "Vẽ Móng Bản"
-APP_VER = "1.0.0"
+APP_NAME = "VE_MONGBANKOSUON"
+APP_VER = "1.1.0"
 
 
 def settings_path():
     base = os.environ.get("APPDATA") or os.path.expanduser("~/.config")
-    d = os.path.join(base, "VeMongBan")
+    d = os.path.join(base, "VE_MONGBANKOSUON")
     os.makedirs(d, exist_ok=True)
     return os.path.join(d, "settings.json")
 
@@ -83,7 +83,7 @@ DIM_FIELDS = [
     ("H1", "H1 - chôn sâu (m)"), ("H2", "H2 - cao trên mặt đất (m)"),
     ("HB", "hb - cao bản giữa (m)"), ("HV", "hv - cao bản ở mép (m)"),
     ("TL", "Dày bê tông lót (m)"), ("ML", "Lót tràn ra mỗi bên (m)"), ("MPL", "Vát tràn ngoài cổ móng (m)"),
-    ("HC", "Dày đệm cát (m, 0 = không có)"), ("SLOPE", "Hệ số mở mái K27 (tính KL)"),
+    ("HC", "Dày đệm cát (m)"), ("SLOPE", "Hệ số mở mái (tính KL)"),
     ("MPIT", "Mở rộng đáy hố đào (m)"),
 ]
 REBAR_FIELDS = [
@@ -98,6 +98,16 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title(f"{APP_NAME} {APP_VER}")
+        try:
+            ico = os.path.join(cad.resource_dir(), "icon.ico")
+            if sys.platform == "win32":
+                self.iconbitmap(ico)
+            else:
+                from PIL import Image, ImageTk
+                self._ico = ImageTk.PhotoImage(Image.open(ico))
+                self.iconphoto(True, self._ico)
+        except Exception:
+            pass
         self.geometry("1400x860")
         self.minsize(1100, 700)
         self.st = load_settings()
@@ -157,6 +167,7 @@ class App(tk.Tk):
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=8)
         b("Xuất PDF...", self.export_pdf).pack(side="left")
         b("Xuất AutoCAD (DXF)...", self.export_dxf).pack(side="left", padx=(4, 0))
+        b("Xuất Excel khối lượng...", self.export_xlsx).pack(side="left", padx=(4, 0))
 
         info = ttk.Frame(self, padding=(8, 0))
         info.pack(side="top", fill="x")
@@ -341,12 +352,7 @@ class App(tk.Tk):
         err = model.validate(p)
         self.l_err.config(text=f"[!] {err}" if err else "")
         if not err:
-            txt = (f"Loại móng: {model.type_name(p)}    H = H1 + H2 = {model.H(p):.2f} m\n"
-                   f"BT móng = {model.vol_mong(p):.2f} m³ ({p['BTM']})   BT lót = {model.vol_lot(p):.2f} m³ ({p['BTL']})")
-            if p["HC"] > 0:
-                txt += f"\nĐệm cát = {model.vol_cat(p):.2f} m³   Vải địa = {model.area_vai(p):.2f} m²"
-            txt += f"\nSố tờ: {'2 (có tờ chi tiết thép)' if model.is_detail(p) else '1'}"
-            self.l_info.config(text=txt)
+            self.l_info.config(text=f"Loại móng: {model.type_name(p)}")
         return None if err else p
 
     def auto_scale(self):
@@ -502,6 +508,24 @@ class App(tk.Tk):
                     self.l_msg.config(text=f"Đã xuất DXF: {f}  (mở bằng AutoCAD, Save As .dwg nếu cần)")
                 except Exception as ex:
                     messagebox.showerror(APP_NAME, f"Không ghi được file:\n{ex}")
+        self._ensure_fresh(go)
+
+    def export_xlsx(self):
+        def go():
+            base = os.path.splitext(self._default_name(".xlsx"))[0] + "_KL.xlsx"
+            f = filedialog.asksaveasfilename(title="Xuất Excel khối lượng", defaultextension=".xlsx",
+                                             filetypes=[("Excel", "*.xlsx")], initialfile=base,
+                                             initialdir=os.path.dirname(self.xls) if self.xls else None)
+            if not f:
+                return
+            if self.xls and os.path.abspath(f) == os.path.abspath(self.xls):
+                messagebox.showerror(APP_NAME, "Không được ghi đè lên file Excel đầu vào.")
+                return
+            try:
+                kl_excel.export(self.res.geo.p, self.res.geo, f)
+                self.l_msg.config(text=f"Đã xuất Excel khối lượng: {f}")
+            except Exception as ex:
+                messagebox.showerror(APP_NAME, f"Không ghi được file:\n{ex}")
         self._ensure_fresh(go)
 
     # ------------------------------------------------------------ xem trước

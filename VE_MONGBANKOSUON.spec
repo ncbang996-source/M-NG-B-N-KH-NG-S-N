@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-# Đóng gói: pyinstaller VeMongBan.spec  ->  dist/VeMongBan.exe
+# Đóng gói: pyinstaller VE_MONGBANKOSUON.spec  ->  dist/VE_MONGBANKOSUON.exe
 a = Analysis(
     ['app.py'],
     pathex=[],
@@ -12,10 +12,10 @@ a = Analysis(
 pyz = PYZ(a.pure)
 exe = EXE(
     pyz, a.scripts, a.binaries, a.datas, [],
-    name='VeMongBan',
+    name='VE_MONGBANKOSUON',
     debug=False,
     strip=False,
     upx=False,
     console=False,
-    icon=None,
+    icon='assets/icon.ico',
 )

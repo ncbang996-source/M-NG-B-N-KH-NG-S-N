@@ -18,3 +18,7 @@ export.save_dxf(res, os.path.join(d, "t.dxf"))
 data = export.pdf_bytes(res)
 assert data[:4] == b"%PDF" and len(res.origins) == 2
 print("OK - thep", round(total, 2), "kg; PDF", len(data), "bytes")
+
+from mongban import kl_excel  # noqa: E402
+kl_excel.export(p, res.geo, os.path.join(d, "kl.xlsx"))
+print("OK - Excel khoi luong")
