@@ -113,6 +113,22 @@ class Callouts:
         with self.c.item(f"callout{num}", f"Chú thích thép {self.g.sq(num)}"):
             return self._draw(targets, bx, by, side, num, txt1, txt2, tick, mode)
 
+    def _anchor(self, me, i, tp):
+        """Điểm bắt leader vào thép: cố định theo hình, chỉ dịch khi kéo riêng điểm này (id ...@t<i>)."""
+        c = self.c
+        if me is None:
+            return tp
+        from .cad import Obj
+        aid = f"{me.id}@t{i}"
+        d = c.offsets.get(aid)
+        x, y = (tp[0] + d[0], tp[1] + d[1]) if d else tp
+        gx, gy = c.off(False)
+        a = Obj(aid, "anchor", "Điểm bắt leader")
+        a.add(x + gx - 0.9, y + gy - 0.9)
+        a.add(x + gx + 0.9, y + gy + 0.9)
+        c.objs.append(a)
+        return (x, y)
+
     def _draw(self, targets, bx, by, side, num, txt1, txt2, tick, mode):
         c = self.c
         ln = max(txtw(txt1, 2.0), txtw(txt2, 2.0) if txt2 else 0.0)
@@ -121,16 +137,20 @@ class Callouts:
         ex = bx - side * span
         tx = bx - side * 4.3
         c.ln("CHU", ex, by, bx - side * 3.0, by)
-        for tp in targets:
+        di = c.item_off()                          # dịch chuyển riêng của tag (leader tự co giãn)
+        me = c._stack[-1] if c._stack else None
+        for i, tp in enumerate(targets):
+            tp = self._anchor(me, i, tp)
             if mode == "hd":
-                dr = 1.0 if tp[0] > ex else -1.0
-                xk = ex + dr * max(2.0, 0.35 * abs(tp[0] - ex))
+                dr = 1.0 if tp[0] > ex + di[0] else -1.0
+                xk = ex + dr * max(2.0, 0.35 * abs(tp[0] - ex - di[0]))
                 c.ln("CHU", ex, by, xk, by)
                 c.ln("CHU", xk, by, tp[0], tp[1], fixed2=True)
             elif mode:
-                c.ln("CHU", ex, by, tp[0], by)
-                if abs(by - tp[1]) > 0.01:
-                    c.ln("CHU", tp[0], by, tp[0], tp[1], fixed2=True)
+                xt = tp[0] - di[0]                 # đoạn đứng luôn đi qua đúng thanh thép
+                c.ln("CHU", ex, by, xt, by)
+                if abs(by + di[1] - tp[1]) > 0.01:
+                    c.ln("CHU", xt, by, tp[0], tp[1], fixed2=True)
             else:
                 c.ln("CHU", ex, by, tp[0], tp[1], fixed2=True)
             if tick:
@@ -217,8 +237,8 @@ def d2_section(c: Ctx, g: Geo, co: Callouts):
     ybb = g.ybase + offb + 2 * k * p["RB_BOT_D"] / 1000.0
     foot = 0.3 * k
     xl, xr = pcx - (g.ph - off), pcx + (g.ph - off)
-    c.pl("COTTHEP", False, [(xl, ytb), (xl, ybb), (xl + foot, ybb)])
-    c.pl("COTTHEP", False, [(xr, ytb), (xr, ybb), (xr - foot, ybb)])
+    c.pl("COTTHEP", False, [(xl, ytb), (xl, ybb), (xl - foot, ybb)])     # móc chân quay ra ngoài
+    c.pl("COTTHEP", False, [(xr, ytb), (xr, ybb), (xr + foot, ybb)])
     ml, ms, mr = int(p["RL_N"]), k * p["RL_S"] / 1000.0, g.rbar("RL_D")
     hhb = g.ph - off
     for il in range(ml):

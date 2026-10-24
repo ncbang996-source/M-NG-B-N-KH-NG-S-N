@@ -99,7 +99,8 @@ class Geo:
         return self.offs(max(s5, ln - 2 * s5), s5)
 
     def rbar(self, key):
-        return max(0.12, 0.5 * self.k * self.g(key) / 1000.0)
+        """Bán kính chấm thép trên giấy (mm): theo đường kính thật, tối thiểu 0.2 để nhìn rõ."""
+        return max(0.2, 0.5 * self.k * self.g(key) / 1000.0)
 
     def slope_top(self):
         return (self.ypl - self.yed) / (self.hL - self.hPl)

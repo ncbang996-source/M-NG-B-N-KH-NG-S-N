@@ -16,7 +16,9 @@ App Windows chạy offline để vẽ nhanh bản vẽ **móng bản (móng cộ
 - **Xuất PDF:** A3, tỷ lệ 1:1, nét theo layer, font Roboto.
 - **Xuất AutoCAD (.dxf):** giữ layer có độ dày nét, dimension thật và khung tên dạng block. Mở bằng AutoCAD rồi Save As `.dwg` nếu cần.
 - **Xuất Excel khối lượng:** sheet THONG SO (số liệu đầu vào) và KHOI LUONG (công thức): bê tông, lót, đệm cát, vải địa, đào đất, đắp đất, đất thừa, ván khuôn, cốt thép.
-- **Sắp xếp (kéo thả):** kéo từng chữ, dim, chú thích, bảng hoặc cả hình để tránh chồng nhau; chuột phải để trả về mặc định. Vị trí lưu vào `<tên Excel>.layout.json`.
+- **Sắp xếp (kéo thả):** kéo từng chữ, dim, chú thích, bảng hoặc cả hình để tránh chồng nhau; bản vẽ cập nhật ngay khi thả chuột.
+  - Kéo tag thép: leader tự co giãn, điểm bắt vào thép giữ nguyên. Muốn đổi thanh thép được chỉ vào thì kéo vòng tròn xanh lá ở đầu leader.
+  - Chuột phải để trả về mặc định. Vị trí lưu vào `<tên Excel>.layout.json`.
 - Tên file xuất mặc định trùng tên file Excel đầu vào.
 
 ## Độ dày nét (theo layer)

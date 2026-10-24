@@ -410,12 +410,18 @@ class App(tk.Tk):
     def edit_fields(self):
         FieldsDialog(self)
 
-    def _render(self, p, done):
+    def _render(self, p, done, only=None):
         def work():
             try:
                 res = export.build(p, self.frame_path or None, self.fields, dict(self.offsets))
-                data = export.pdf_bytes(res)
+                data = export.pdf_bytes(res, only)
                 imgs = pdf_images(data)
+                if only is not None:          # chỉ dựng lại tờ đang xem, các tờ khác giữ ảnh cũ
+                    full = list(self.pages)
+                    for k, i in enumerate(sorted(only)):
+                        if i < len(full):
+                            full[i] = imgs[k]
+                    imgs, data = full, None
                 self.after(0, lambda: done(res, data, imgs, None))
             except Exception as ex:
                 err = (ex, traceback.format_exc())
@@ -423,10 +429,10 @@ class App(tk.Tk):
                 self.after(0, lambda: done(None, None, None, err))
         threading.Thread(target=work, daemon=True).start()
 
-    def preview(self):
+    def preview(self, only=None):
         self._job = None
         if self.busy:
-            self._job = self.after(800, self.preview)
+            self._job = self.after(400, lambda: self.preview(only))
             return
         p = self._update_info()
         if p is None:
@@ -443,7 +449,7 @@ class App(tk.Tk):
                 messagebox.showerror(APP_NAME, f"{err[0]}\n\n{err[1][-1500:]}")
                 return
             self.res, self.pdf, self.pages = res, data, imgs
-            self.dirty = False
+            self.dirty = data is None
             self.pending = {}
             if self.l_msg.cget("text").startswith("Đã dịch chuyển"):
                 self.l_msg.config(text="")
@@ -451,7 +457,9 @@ class App(tk.Tk):
             self.cb_page.config(values=vals)
             self._show_page(min(self.page_i, len(imgs) - 1))
             self.l_state.config(text=f"{len(imgs)} tờ A3 - tỷ lệ 1/{res.geo.den}")
-        self._render(p, done)
+        if only is not None and len(self.pages) != (2 if model.is_detail(p) else 1):
+            only = None
+        self._render(p, done, only)
 
     def _ensure_fresh(self, then):
         if self.pdf is not None and not self.dirty:
@@ -561,7 +569,8 @@ class App(tk.Tk):
         im = self.pages[self.page_i]
         z = self.zoom or self._fit_zoom()
         w, h = max(1, int(im.width * z)), max(1, int(im.height * z))
-        self._tkimg = ImageTk.PhotoImage(im.resize((w, h), resample=3))
+        self._zimg = im.resize((w, h), resample=3)
+        self._tkimg = ImageTk.PhotoImage(self._zimg)
         self.pv.delete("all")
         cw, ch = self.pv.winfo_width(), self.pv.winfo_height()
         x0 = max(10, (cw - w) // 2)
@@ -604,6 +613,9 @@ class App(tk.Tk):
             moved = any(o.id == k or o.id.startswith(k + ".") for k in self.pending)
             if o.kind == "group":
                 self.pv.create_rectangle(x1 - 3, y1 - 3, x2 + 3, y2 + 3, outline="#1565c0", dash=(6, 3), tags="ov")
+            elif o.kind == "anchor":
+                cx_, cy_ = (x1 + x2) / 2, (y1 + y2) / 2
+                self.pv.create_oval(cx_ - 3, cy_ - 3, cx_ + 3, cy_ + 3, outline="#2e7d32", width=2, tags="ov")
             else:
                 self.pv.create_rectangle(x1 - 1, y1 - 1, x2 + 1, y2 + 1,
                                          outline="#d32f2f" if moved else "#ef6c00", tags="ov")
@@ -613,12 +625,12 @@ class App(tk.Tk):
             return None
         x, y = self.pv.canvasx(e.x), self.pv.canvasy(e.y)
         best = None
-        for pref in (("item", "table"), ("group",)):
+        for pref in (("anchor",), ("item", "table"), ("group",)):
             for o in self._objs():
                 if o.kind not in pref:
                     continue
                 x1, y1, x2, y2 = self._box_px(o)
-                pad = 3 if o.kind == "group" else 1
+                pad = 3 if o.kind in ("group", "anchor") else 1
                 if x1 - pad <= x <= x2 + pad and y1 - pad <= y <= y2 + pad:
                     a = (x2 - x1) * (y2 - y1)
                     if best is None or a < best[0]:
@@ -639,12 +651,23 @@ class App(tk.Tk):
             self._drag = "pan"
             return
         o = self._pick(e)
+        self._dlast = (0.0, 0.0)
         if o is None:
             self._drag = None
             return
         x1, y1, x2, y2 = self._box_px(o)
+        items = []
+        if o.kind != "anchor" and getattr(self, "_zimg", None) is not None:
+            # phần hình của đối tượng đi theo chuột -> thấy kết quả ngay khi kéo
+            from PIL import ImageTk
+            gx, gy, _ = self._geom
+            bx = (int(x1 - gx) - 2, int(y1 - gy) - 2, int(x2 - gx) + 3, int(y2 - gy) + 3)
+            self._dragimg = ImageTk.PhotoImage(self._zimg.crop(bx))
+            items.append(self.pv.create_rectangle(x1 - 2, y1 - 2, x2 + 3, y2 + 3, fill="white", outline="", tags="ov"))
+            items.append(self.pv.create_image(x1 - 2, y1 - 2, image=self._dragimg, anchor="nw", tags="ov"))
         r = self.pv.create_rectangle(x1, y1, x2, y2, outline="#d32f2f", width=2, dash=(4, 2), tags="ov")
-        self._drag = (o, self.pv.canvasx(e.x), self.pv.canvasy(e.y), r, (x1, y1, x2, y2))
+        items.append(r)
+        self._drag = (o, self.pv.canvasx(e.x), self.pv.canvasy(e.y), items, (x1, y1, x2, y2))
 
     def _motion(self, e):
         if self._drag == "pan":
@@ -652,16 +675,22 @@ class App(tk.Tk):
             return
         if not self._drag:
             return
-        o, sx, sy, r, (x1, y1, x2, y2) = self._drag
+        o, sx, sy, items, _ = self._drag
         dx, dy = self.pv.canvasx(e.x) - sx, self.pv.canvasy(e.y) - sy
-        self.pv.coords(r, x1 + dx, y1 + dy, x2 + dx, y2 + dy)
+        last = getattr(self, "_dlast", (0.0, 0.0))
+        for it in items[1:]:                          # nền trắng (items[0]) đứng yên che chỗ cũ
+            self.pv.move(it, dx - last[0], dy - last[1])
+        if len(items) == 1:
+            self.pv.move(items[0], dx - last[0], dy - last[1])
+        self._dlast = (dx, dy)
 
     def _release(self, e):
         d = self._drag
         self._drag = None
         if not d or d == "pan":
             return
-        o, sx, sy, r, _ = d
+        o, sx, sy, items, _ = d
+        self._dlast = (0.0, 0.0)
         s = self._geom[2]
         dx = (self.pv.canvasx(e.x) - sx) / s
         dy = -(self.pv.canvasy(e.y) - sy) / s
@@ -678,13 +707,10 @@ class App(tk.Tk):
         self._layout_changed()
 
     def _layout_changed(self):
+        """Dịch chuyển: dựng lại ngay tờ đang xem (phần đã kéo vẫn hiện ở vị trí mới trong lúc chờ)."""
         self.dirty = True
         save_layout(self.xls, self.offsets)
-        self._overlay()
-        if self.v_auto.get():
-            self.preview()
-        else:
-            self.l_msg.config(text="Đã dịch chuyển. Bấm \"Xem trước\" để cập nhật bản vẽ (PDF và DXF).")
+        self.preview(only={self.page_i})
 
     def _context(self, e):
         if not self.v_arr.get():

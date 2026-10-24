@@ -68,7 +68,7 @@ def save_dxf(res: Result, path: str):
     res.doc.saveas(path)
 
 
-def pdf_bytes(res: Result) -> bytes:
+def pdf_bytes(res: Result, only=None) -> bytes:
     """Mỗi tờ 1 trang A3 ngang, tỷ lệ 1:1, nét theo layer, chữ Roboto, kèm logo OLE."""
     import pymupdf
     from ezdxf.addons.drawing import Frontend, RenderContext, config, layout
@@ -86,6 +86,8 @@ def pdf_bytes(res: Result) -> bytes:
     out = pymupdf.open()
     msp = res.doc.modelspace()
     for i, (ox, oy) in enumerate(res.origins):
+        if only is not None and i not in only:
+            continue
         ctx = RenderContext(res.doc)
         be = pmb.PyMuPdfBackend()
         hs = res.handles[i] if i < len(res.handles) else None
