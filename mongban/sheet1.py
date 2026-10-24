@@ -116,7 +116,11 @@ def draw_section(c: Ctx, g: Geo):
         c.ln("TRUC", cx + s * g.dx, g.ytop + 4.3, cx + s * g.dx, g.ylb - 2.2)
     c.ln("TRUC", cx, g.ylb - 1.5, cx, g.ytop + 4.4)
     sym(c, cx, g.ytop - 0.5)
-    section_bolts(c, g)
+    ybt = section_bolts(c, g)
+    xb = cx + g.dx + 0.47 * g.ph + 1.1
+    yb = (g.ytop + ybt) / 2
+    c.ln("CHU", xb, yb, xb + 6.0, yb)
+    c.tx("CHU", xb + 7.0, yb - 0.8, 1.6, g.p["BLN"])
     # cao độ
     elev(c, g.dimX2 - 17.4, g.ybase, f"-{fx(h1, 2)}m")
     elev(c, g.dimX2 - 17.4, g.ygl, "%%p0.00")
@@ -137,18 +141,25 @@ def draw_section(c: Ctx, g: Geo):
     title(c, cx, g.yd - 6.9, "A-A", f"TL:1/{g.den}")
 
 
-def section_bolts(c: Ctx, g: Geo):
-    o = 0.47 * g.ph
-    bw = max(0.4, 0.18 * g.ph)
-    bh = max(1.2, 0.55 * g.ph)
+BOLT_GAP = 0.05    # khe hở thực tế giữa vòng đệm / đai ốc và mặt trên cổ móng (m)
+
+
+def bolt_side(c: Ctx, g: Geo, xb, ytop):
+    """Bu lông neo nhìn ngang: thân + vòng đệm + 2 đai ốc, đặt cách mặt cổ móng 1 khe hở."""
+    gp = max(0.8, g.k * BOLT_GAP)
+    c.rect("CHU", xb - 0.3, ytop, xb + 0.3, ytop + 3.4 + gp)
+    for x0, y0, x1, y1 in ((-1.1, 0, 1.1, 0.25), (-0.8, 0.25, 0.8, 1.15), (-0.8, 1.45, 0.8, 2.35)):
+        c.rect("CHU", xb + x0, ytop + gp + y0, xb + x1, ytop + gp + y1)
+    return ytop + gp + 3.4
+
+
+def section_bolts(c: Ctx, g: Geo, cx=None):
+    cx = g.cx if cx is None else cx
+    top = g.ytop
     for s in (-1, 1):
         for t in (-1, 1):
-            xb = g.cx + s * g.dx + t * o
-            c.rect("CHU", xb - bw / 2, g.ytop, xb + bw / 2, g.ytop + bh)
-    xb = g.cx + g.dx + o + bw / 2
-    yb = g.ytop + 0.5 * bh
-    c.ln("CHU", xb, yb, xb + 6.0, yb)
-    c.tx("CHU", xb + 7.0, yb - 0.8, 1.6, g.p["BLN"])
+            top = bolt_side(c, g, cx + s * g.dx + t * 0.47 * g.ph, g.ytop)
+    return top
 
 
 def draw_cushion(c: Ctx, g: Geo):
@@ -156,10 +167,15 @@ def draw_cushion(c: Ctx, g: Geo):
     yv = g.ylt
     xw = cx - g.hPit - k * s * hc
     xf = cx - g.hL + 0.5 * k
-    c.hatch("HATCH", [(cx - g.hPit, g.ylb), (cx + g.hPit, g.ylb), (2 * cx - xw, g.ylt), (xw, g.ylt)], "AR-SAND", 1.2)
+    lbl = f"{T_CUSHION}{int(1000 * hc + 0.5)}mm"
+    yl = (g.ylt + g.ylb) / 2 - 1.0
+    wl = txtw(lbl, 2.0) / 2 + 0.8
+    hole = [(cx - wl, yl - 1.6), (cx + wl, yl - 1.6), (cx + wl, yl + 1.6), (cx - wl, yl + 1.6)]
+    c.hatch("HATCH", [(cx - g.hPit, g.ylb), (cx + g.hPit, g.ylb), (2 * cx - xw, g.ylt), (xw, g.ylt)], "AR-SAND", 1.2,
+            holes=[hole] if 2 * 1.6 < (g.ylt - g.ylb) else ())
     c.pl("VAI DIA", False, [(xf + 1.3, yv - 1.3), (xf, yv), (xw, yv), (cx - g.hPit, g.ylb), (cx + g.hPit, g.ylb),
                             (2 * cx - xw, yv), (2 * cx - xf, yv), (2 * cx - xf - 1.3, yv - 1.3)])
-    c.txc("CHU", cx, (g.ylt + g.ylb) / 2 - 1.0, 2.0, f"{T_CUSHION}{int(1000 * hc + 0.5)}mm")
+    c.txc("CHU", cx, yl, 2.0, lbl)
     xg = cx + 0.3 * g.hPit
     c.pl("CHU", False, [(xg, g.ylb), (xg - 3.5, g.ylb - 4.0), (xg - 3.5 - 25.0, g.ylb - 4.0)])
     c.tx("CHU", xg - 3.5 - 25.0, g.ylb - 3.2, 2.0, T_GEO)

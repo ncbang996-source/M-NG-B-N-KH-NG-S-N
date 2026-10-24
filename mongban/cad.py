@@ -18,7 +18,7 @@ LAYERS = {
     "DIM":       (4, "CONTINUOUS", 18),  # kích thước
     "CHU":       (7, "CONTINUOUS", 18),  # chữ, leader, vòng số hiệu, ký hiệu
     "HINH THUC": (6, "CONTINUOUS", 18),  # mặt đất, hố đào, bê tông lót, đất đắp
-    "VAI DIA":   (1, "CONTINUOUS", 18),  # vải địa kỹ thuật
+    "VAI DIA":   (1, "CONTINUOUS", 30),  # vải địa kỹ thuật (bằng nét bao móng)
     "BANG":      (7, "CONTINUOUS", 18),  # bảng
     "MAIN":      (3, "CONTINUOUS", 30),  # đường bao móng
     "MAT CAT":   (3, "CONTINUOUS", 30),  # ký hiệu mặt cắt
@@ -117,6 +117,29 @@ def ensure_dimstyle(doc, den: int) -> str:
     return nm
 
 
+def dot_free(name, scale, dot=0.2):
+    """Mẫu hatch chuẩn nhưng chấm (nét dài 0) đổi thành nét ngắn ~dot mm.
+    Chấm dài 0 bị một số trình xem PDF / phiên bản thư viện bỏ qua -> mất hatch cát."""
+    from ezdxf.tools import pattern
+    lines = pattern.ISO_PATTERN.get(name)
+    if not lines:
+        return None
+    d0 = dot / max(scale, 1e-9)
+    out = []
+    for ang, base, off, dashes in lines:
+        nd = []
+        for i, v in enumerate(dashes):
+            if v == 0.0:
+                nd.append(d0)
+                if i + 1 < len(dashes) and dashes[i + 1] < 0:
+                    dashes = list(dashes)
+                    dashes[i + 1] = min(-1e-6, dashes[i + 1] + d0)
+            else:
+                nd.append(v)
+        out.append([ang, base, off, nd])
+    return out
+
+
 class Ctx:
     """Vẽ vào modelspace với gốc toạ độ o (góc dưới trái khung tên)."""
 
@@ -163,10 +186,14 @@ class Ctx:
         self.msp.add_solid([self.wp(bx - uy * wid, by + ux * wid), self.wp(bx + uy * wid, by - ux * wid),
                             self.wp(x2, y2), self.wp(x2, y2)], dxfattribs={"layer": lay})
 
-    def hatch(self, lay, pts, pattern, scale, angle=0.0):
+    def hatch(self, lay, pts, pattern, scale, angle=0.0, holes=()):
         h = self.msp.add_hatch(dxfattribs={"layer": lay})
-        h.set_pattern_fill(pattern, scale=scale, angle=angle)
-        h.paths.add_polyline_path([self.wp(*p) for p in pts], is_closed=True)
+        if pattern.upper().startswith("AR-"):
+            scale = scale / 25.4      # mẫu AR- của AutoCAD (acadiso.pat) không nhân 25.4 như bảng ISO của ezdxf
+        h.set_pattern_fill(pattern, scale=scale, angle=angle, definition=dot_free(pattern, scale))
+        h.paths.add_polyline_path([self.wp(*p) for p in pts], is_closed=True, flags=1)
+        for hp in holes:                       # lỗ (vd. chừa chỗ cho chữ)
+            h.paths.add_polyline_path([self.wp(*p) for p in hp], is_closed=True, flags=16)
         return h
 
     # --- chữ --------------------------------------------------------------
@@ -220,6 +247,12 @@ class Ctx:
                                     location=loc, dimstyle=dimname or self.dimname,
                                     dxfattribs={"layer": lay})
         d.render()
+        lw = LAYERS.get(lay, (0, 0, 18))[2]
+        blk = self.doc.blocks.get(d.dimension.dxf.geometry)
+        if blk is not None:
+            for e in blk:
+                if e.dxftype() != "POINT":
+                    e.dxf.lineweight = lw
         return d
 
     def dimH(self, lay, p1, p2, yd, tp=None, **kw):

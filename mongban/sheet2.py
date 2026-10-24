@@ -5,7 +5,7 @@ import math
 
 from .cad import Ctx, txtw
 from .geom import Geo, ceil_
-from .sheet1 import marker, sym, bolts_plan, plan_outline, dim_plan, dim_pier, title, draw_note
+from .sheet1 import marker, sym, bolts_plan, plan_outline, dim_plan, dim_pier, title, draw_note, section_bolts
 
 T_TOP = "THÉP LỚP TRÊN"
 T_BOT = "THÉP LỚP DƯỚI"
@@ -225,12 +225,8 @@ def d2_section(c: Ctx, g: Geo, co: Callouts):
             c.disc("DAI", pcx - (hhb - mr) + jd * 2 * (hhb - mr) / nd, yl - 2 * mr, mr)
     for yy in g.hoop_ys():
         c.ln("DAI", pcx - (g.ph - off), yy, pcx + (g.ph - off), yy)
-    # bu lông neo trên đỉnh 2 cổ (thân + vòng đệm + 2 đai ốc)
-    for s in (-1, 1):
-        for t in (-1, 1):
-            xb = cx + s * g.dx + t * 0.47 * g.ph
-            for x0, y0, x1, y1 in ((-0.3, 0, 0.3, 3.4), (-1.1, 0, 1.1, 0.25), (-0.8, 0.25, 0.8, 1.15), (-0.8, 1.45, 0.8, 2.35)):
-                c.rect("CHU", xb + x0, g.ytop + y0, xb + x1, g.ytop + y1)
+    # bu lông neo trên đỉnh 2 cổ (thân + vòng đệm + 2 đai ốc, có khe hở)
+    section_bolts(c, g, cx)
     yc2 = d2_section_callouts(c, g, co)
     d2_cutmark(c, g, yc2)
 
