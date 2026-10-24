@@ -4,8 +4,9 @@ a = Analysis(
     ['app.py'],
     pathex=[],
     datas=[('assets', 'assets')],
-    hiddenimports=['ezdxf.addons.drawing.pymupdf', 'PIL.ImageTk'],
-    excludes=['matplotlib', 'PyQt5', 'PySide6', 'IPython', 'pandas', 'scipy'],
+    hiddenimports=['ezdxf.addons.drawing.pymupdf', 'PIL.ImageTk', 'PIL._tkinter_finder'],
+    excludes=['matplotlib', 'PyQt5', 'PySide6', 'IPython', 'pandas', 'scipy',
+              'pymupdf.layout', 'pymupdf_layout', 'pymupdf4llm', 'onnxruntime', 'torch'],
     noarchive=False,
 )
 pyz = PYZ(a.pure)

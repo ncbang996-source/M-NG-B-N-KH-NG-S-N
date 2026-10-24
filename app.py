@@ -369,8 +369,9 @@ class App(tk.Tk):
                 imgs = pdf_images(data)
                 self.after(0, lambda: done(res, data, imgs, None))
             except Exception as ex:
-                tb = traceback.format_exc()
-                self.after(0, lambda: done(None, None, None, (ex, tb)))
+                err = (ex, traceback.format_exc())
+                sys.stderr.write(err[1])
+                self.after(0, lambda: done(None, None, None, err))
         threading.Thread(target=work, daemon=True).start()
 
     def preview(self):
