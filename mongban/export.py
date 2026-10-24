@@ -18,6 +18,7 @@ class Result:
     origins: list
     ole: list = field(default_factory=list)
     handles: list = field(default_factory=list)   # handle các đối tượng của từng tờ
+    objs: list = field(default_factory=list)      # đối tượng dịch chuyển được của từng tờ
 
 
 def title_values(p: dict, den: int, sheet: int, nsheet: int) -> dict:
@@ -31,7 +32,7 @@ def title_values(p: dict, den: int, sheet: int, nsheet: int) -> dict:
     }
 
 
-def build(p: dict, frame_path: str | None = None, fields: dict | None = None) -> Result:
+def build(p: dict, frame_path: str | None = None, fields: dict | None = None, offsets: dict | None = None) -> Result:
     err = model.validate(p)
     if err:
         raise ValueError(err)
@@ -46,16 +47,21 @@ def build(p: dict, frame_path: str | None = None, fields: dict | None = None) ->
     handles = []
     n0 = len(msp)
     frame.place(doc, 0.0, 0.0, title_values(p, g.den, 1, nsheet), fields, tags)
-    sheet1.draw(Ctx(doc, msp, 0.0, 0.0, g.den), g)
+    offsets = offsets or {}
+    c1 = Ctx(doc, msp, 0.0, 0.0, g.den, offsets, "s1")
+    sheet1.draw(c1, g)
     handles.append({e.dxf.handle for e in list(msp)[n0:]})
+    objs = [c1.objs]
     if detail:
         origins.append((SHEET_DX, 0.0))
         n0 = len(msp)
         frame.place(doc, SHEET_DX, 0.0, title_values(p, g.den, 2, nsheet), fields, tags)
-        sheet2.draw(Ctx(doc, msp, SHEET_DX, 0.0, g.den), g)
+        c2 = Ctx(doc, msp, SHEET_DX, 0.0, g.den, offsets, "s2")
+        sheet2.draw(c2, g)
         handles.append({e.dxf.handle for e in list(msp)[n0:]})
+        objs.append(c2.objs)
     ole = frame.ole_images(frame_path) if frame_path else []
-    return Result(doc, g, origins, ole, handles)
+    return Result(doc, g, origins, ole, handles, objs)
 
 
 def save_dxf(res: Result, path: str):

@@ -42,6 +42,35 @@ def save_settings(s):
         pass
 
 
+def layout_path(xls):
+    return os.path.splitext(xls)[0] + ".layout.json" if xls else None
+
+
+def load_layout(xls):
+    """Vị trí đã dịch chuyển, lưu cạnh file Excel."""
+    pth = layout_path(xls)
+    try:
+        with open(pth, encoding="utf-8") as f:
+            d = json.load(f)
+        return {k: [float(v[0]), float(v[1])] for k, v in d.get("offsets", {}).items()}
+    except Exception:
+        return {}
+
+
+def save_layout(xls, offsets):
+    pth = layout_path(xls)
+    if not pth:
+        return
+    try:
+        if offsets:
+            with open(pth, "w", encoding="utf-8") as f:
+                json.dump({"offsets": offsets}, f, ensure_ascii=False, indent=1)
+        elif os.path.isfile(pth):
+            os.remove(pth)
+    except OSError:
+        pass
+
+
 def default_frame():
     p = os.path.join(cad.resource_dir(), "frames", "KT-A3.dxf")
     return p if os.path.isfile(p) else ""
@@ -86,6 +115,10 @@ class App(tk.Tk):
         self.zoom = None         # None = vừa khung
         self.busy = False
         self.dirty = True
+        self.offsets: dict = load_layout(self.xls)   # dịch chuyển đã lưu {id: [dx, dy]} (mm giấy)
+        self.pending: dict = {}      # dịch chuyển chưa dựng lại
+        self._drag = None
+        self._geom = None
         self._job = None
         self._build_ui()
         self._fill()
@@ -118,6 +151,9 @@ class App(tk.Tk):
         b("Xem trước", self.preview).pack(side="left")
         self.v_auto = tk.BooleanVar(value=self.st.get("auto", True))
         ttk.Checkbutton(bar, text="Tự cập nhật", variable=self.v_auto).pack(side="left", padx=6)
+        self.v_arr = tk.BooleanVar(value=False)
+        ttk.Checkbutton(bar, text="Sắp xếp (kéo thả)", variable=self.v_arr,
+                        command=self._redraw).pack(side="left", padx=(0, 6))
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=8)
         b("Xuất PDF...", self.export_pdf).pack(side="left")
         b("Xuất AutoCAD (DXF)...", self.export_dxf).pack(side="left", padx=(4, 0))
@@ -165,8 +201,13 @@ class App(tk.Tk):
         self.pv = tk.Canvas(right, background="#808080", highlightthickness=0)
         self.pv.pack(fill="both", expand=True)
         self.pv.bind("<Configure>", lambda e: self._redraw())
-        self.pv.bind("<ButtonPress-1>", lambda e: self.pv.scan_mark(e.x, e.y))
-        self.pv.bind("<B1-Motion>", lambda e: self.pv.scan_dragto(e.x, e.y, gain=1))
+        self.pv.bind("<ButtonPress-1>", self._press)
+        self.pv.bind("<B1-Motion>", self._motion)
+        self.pv.bind("<ButtonRelease-1>", self._release)
+        self.pv.bind("<ButtonPress-2>", lambda e: self.pv.scan_mark(e.x, e.y))
+        self.pv.bind("<B2-Motion>", lambda e: self.pv.scan_dragto(e.x, e.y, gain=1))
+        self.pv.bind("<ButtonPress-3>", self._context)
+        self.pv.bind("<Motion>", self._hover)
         self.pv.bind("<MouseWheel>", self._wheel_zoom)
         self.pv.bind("<Button-4>", lambda e: self.zoom_by(1.15))
         self.pv.bind("<Button-5>", lambda e: self.zoom_by(1 / 1.15))
@@ -334,6 +375,8 @@ class App(tk.Tk):
         if model.validate(p) is None and int(p["SCALE"]) < model.auto_scale(p):
             p["SCALE"] = model.auto_scale(p)          # tỷ lệ hiện tại không đủ chỗ -> tự chọn
         self.p, self.xls = p, path
+        self.offsets = load_layout(path)
+        self.pending = {}
         self._fill()
         msg = f"Đã đọc {os.path.basename(path)}."
         if warn:
@@ -364,7 +407,7 @@ class App(tk.Tk):
     def _render(self, p, done):
         def work():
             try:
-                res = export.build(p, self.frame_path or None, self.fields)
+                res = export.build(p, self.frame_path or None, self.fields, dict(self.offsets))
                 data = export.pdf_bytes(res)
                 imgs = pdf_images(data)
                 self.after(0, lambda: done(res, data, imgs, None))
@@ -395,6 +438,9 @@ class App(tk.Tk):
                 return
             self.res, self.pdf, self.pages = res, data, imgs
             self.dirty = False
+            self.pending = {}
+            if self.l_msg.cget("text").startswith("Đã dịch chuyển"):
+                self.l_msg.config(text="")
             vals = [f"Tờ {i + 1}" for i in range(len(imgs))]
             self.cb_page.config(values=vals)
             self._show_page(min(self.page_i, len(imgs) - 1))
@@ -417,12 +463,15 @@ class App(tk.Tk):
                 messagebox.showerror(APP_NAME, f"{err[0]}")
                 return
             self.res, self.pdf, self.pages, self.dirty = res, data, imgs, False
+            self.pending = {}
             self.cb_page.config(values=[f"Tờ {i + 1}" for i in range(len(imgs))])
             self._show_page(min(self.page_i, len(imgs) - 1))
             then()
         self._render(p, done)
 
     def _default_name(self, ext):
+        if self.xls:
+            return os.path.splitext(os.path.basename(self.xls))[0] + ext
         p = self.p
         nm = f"MONG_{model.type_name(p)}_{p.get('COT', '')}_{p.get('GD', '')}".replace(" ", "_").replace("/", "-")
         return nm + ext
@@ -496,6 +545,144 @@ class App(tk.Tk):
         self.pv.create_rectangle(x0 + 4, y0 + 4, x0 + w + 4, y0 + h + 4, fill="#555", outline="")
         self.pv.create_image(x0, y0, image=self._tkimg, anchor="nw")
         self.pv.configure(scrollregion=(0, 0, max(cw, w + 20), max(ch, h + 20)))
+        self._geom = (x0, y0, w / export.PAGE_W)
+        self._overlay()
+
+    # ------------------------------------------------------------ sắp xếp
+    def _objs(self):
+        res = getattr(self, "res", None)
+        if not res or not self.v_arr.get() or self.page_i >= len(res.objs):
+            return []
+        return res.objs[self.page_i]
+
+    def _pend(self, o):
+        """Dịch chuyển chưa dựng lại của đối tượng (cộng cả nhóm chứa nó)."""
+        dx = dy = 0.0
+        for oid, d in self.pending.items():
+            if o.id == oid or o.id.startswith(oid + "."):
+                dx += d[0]
+                dy += d[1]
+        return dx, dy
+
+    def _box_px(self, o):
+        x0, y0, s = self._geom
+        dx, dy = self._pend(o)
+        b = o.bbox
+        return (x0 + (b[0] + dx) * s, y0 + (export.PAGE_H - b[3] - dy) * s,
+                x0 + (b[2] + dx) * s, y0 + (export.PAGE_H - b[1] - dy) * s)
+
+    def _overlay(self):
+        self.pv.delete("ov")
+        if not self._geom:
+            return
+        for o in self._objs():
+            x1, y1, x2, y2 = self._box_px(o)
+            moved = any(o.id == k or o.id.startswith(k + ".") for k in self.pending)
+            if o.kind == "group":
+                self.pv.create_rectangle(x1 - 3, y1 - 3, x2 + 3, y2 + 3, outline="#1565c0", dash=(6, 3), tags="ov")
+            else:
+                self.pv.create_rectangle(x1 - 1, y1 - 1, x2 + 1, y2 + 1,
+                                         outline="#d32f2f" if moved else "#ef6c00", tags="ov")
+
+    def _pick(self, e):
+        if not self._geom:
+            return None
+        x, y = self.pv.canvasx(e.x), self.pv.canvasy(e.y)
+        best = None
+        for pref in (("item", "table"), ("group",)):
+            for o in self._objs():
+                if o.kind not in pref:
+                    continue
+                x1, y1, x2, y2 = self._box_px(o)
+                pad = 3 if o.kind == "group" else 1
+                if x1 - pad <= x <= x2 + pad and y1 - pad <= y <= y2 + pad:
+                    a = (x2 - x1) * (y2 - y1)
+                    if best is None or a < best[0]:
+                        best = (a, o)
+            if best:
+                return best[1]
+        return None
+
+    def _hover(self, e):
+        if not self.v_arr.get():
+            return
+        o = self._pick(e)
+        self.l_state.config(text=f"{o.label or o.id}  (kéo để dịch chuyển, chuột phải để trả về mặc định)" if o else "")
+
+    def _press(self, e):
+        if not self.v_arr.get():
+            self.pv.scan_mark(e.x, e.y)
+            self._drag = "pan"
+            return
+        o = self._pick(e)
+        if o is None:
+            self._drag = None
+            return
+        x1, y1, x2, y2 = self._box_px(o)
+        r = self.pv.create_rectangle(x1, y1, x2, y2, outline="#d32f2f", width=2, dash=(4, 2), tags="ov")
+        self._drag = (o, self.pv.canvasx(e.x), self.pv.canvasy(e.y), r, (x1, y1, x2, y2))
+
+    def _motion(self, e):
+        if self._drag == "pan":
+            self.pv.scan_dragto(e.x, e.y, gain=1)
+            return
+        if not self._drag:
+            return
+        o, sx, sy, r, (x1, y1, x2, y2) = self._drag
+        dx, dy = self.pv.canvasx(e.x) - sx, self.pv.canvasy(e.y) - sy
+        self.pv.coords(r, x1 + dx, y1 + dy, x2 + dx, y2 + dy)
+
+    def _release(self, e):
+        d = self._drag
+        self._drag = None
+        if not d or d == "pan":
+            return
+        o, sx, sy, r, _ = d
+        s = self._geom[2]
+        dx = (self.pv.canvasx(e.x) - sx) / s
+        dy = -(self.pv.canvasy(e.y) - sy) / s
+        if abs(dx) < 0.2 and abs(dy) < 0.2:
+            self._overlay()
+            return
+        self._move(o.id, dx, dy)
+
+    def _move(self, oid, dx, dy):
+        cur = self.offsets.get(oid, [0.0, 0.0])
+        self.offsets[oid] = [round(cur[0] + dx, 2), round(cur[1] + dy, 2)]
+        pd = self.pending.get(oid, [0.0, 0.0])
+        self.pending[oid] = [pd[0] + dx, pd[1] + dy]
+        self._layout_changed()
+
+    def _layout_changed(self):
+        self.dirty = True
+        save_layout(self.xls, self.offsets)
+        self._overlay()
+        if self.v_auto.get():
+            self.preview()
+        else:
+            self.l_msg.config(text="Đã dịch chuyển. Bấm \"Xem trước\" để cập nhật bản vẽ (PDF và DXF).")
+
+    def _context(self, e):
+        if not self.v_arr.get():
+            return
+        o = self._pick(e)
+        m = tk.Menu(self, tearoff=0)
+        if o is not None:
+            m.add_command(label=f"Về vị trí mặc định: {o.label or o.id}", command=lambda: self._reset([o.id]))
+        sheet = f"s{self.page_i + 1}."
+        m.add_command(label="Về vị trí mặc định cả tờ",
+                      command=lambda: self._reset([k for k in self.offsets if k.startswith(sheet)]))
+        m.tk_popup(e.x_root, e.y_root)
+
+    def _reset(self, ids):
+        changed = False
+        for k in list(self.offsets):
+            if any(k == i or k.startswith(i + ".") for i in ids):
+                del self.offsets[k]
+                changed = True
+        if changed:
+            self.pending = {k: v for k, v in self.pending.items() if k not in ids}
+            self._layout_changed()
 
     def on_close(self):
         try:

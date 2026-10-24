@@ -24,6 +24,11 @@ def fx(x, n):
 # ký hiệu dùng chung (cả 2 tờ)
 def elev(c: Ctx, x, y, s):
     """Ký hiệu cao độ."""
+    with c.item("elev", "Cao độ"):
+        _elev(c, x, y, s)
+
+
+def _elev(c: Ctx, x, y, s):
     c.pl("CHU", False, [(x, y), (x + 2.2, y + 2.4), (x, y + 2.4), (x - 2.1, y + 2.4), (x, y), (x, y + 4.7), (x - 8.0, y + 4.7)])
     c.ln("CHU", x + 4.4, y, x - 4.3, y)
     c.tx("CHU", x - 8.0, y + 5.5, 2.0, s)
@@ -38,6 +43,11 @@ def sym(c: Ctx, x, y):
 
 def marker(c: Ctx, mx, my, sgn, txt, tx, mlen=7.76):
     """Ký hiệu mặt cắt: thanh đậm + mũi tên hướng lên + chữ."""
+    with c.item("marker", "Ký hiệu mặt cắt"):
+        _marker(c, mx, my, sgn, txt, tx, mlen)
+
+
+def _marker(c: Ctx, mx, my, sgn, txt, tx, mlen):
     c.rect("MAT CAT", min(mx, mx + sgn * mlen), my - 0.4, max(mx, mx + sgn * mlen), my)
     xa = mx + sgn * (mlen - 2.4)
     c.ln("MAT CAT", xa, my - 6.36, xa, my - 2.36)
@@ -74,6 +84,12 @@ def bolts_plan(c: Ctx, g: Geo, px, py):
 
 def title(c: Ctx, x, y, s, scale_txt):
     """Tên hình (gạch chân, cao 4) + tỷ lệ bên dưới, canh giữa tại x."""
+    with c.item("title", "Tên hình"):
+        c.txj("CHU", x, y, 4.0, s, 1, underline=True)
+        c.txj("CHU", x, y - 4.5, 2.0, scale_txt, 1)
+
+
+def _unused_title(c, x, y, s, scale_txt):
     c.txj("CHU", x, y, 4.0, s, 1, underline=True)
     c.txj("CHU", x, y - 4.5, 2.0, scale_txt, 1)
 
@@ -119,8 +135,9 @@ def draw_section(c: Ctx, g: Geo):
     ybt = section_bolts(c, g)
     xb = cx + g.dx + 0.47 * g.ph + 1.1
     yb = (g.ytop + ybt) / 2
-    c.ln("CHU", xb, yb, xb + 6.0, yb)
-    c.tx("CHU", xb + 7.0, yb - 0.8, 1.6, g.p["BLN"])
+    with c.item("bln", "Ghi chú bu lông"):
+        c.ln("CHU", xb, yb, xb + 6.0, yb, fixed1=True)
+        c.tx("CHU", xb + 7.0, yb - 0.8, 1.6, g.p["BLN"])
     # cao độ
     elev(c, g.dimX2 - 17.4, g.ybase, f"-{fx(h1, 2)}m")
     elev(c, g.dimX2 - 17.4, g.ygl, "%%p0.00")
@@ -135,9 +152,11 @@ def draw_section(c: Ctx, g: Geo):
     c.ln("HINH THUC", rx, g.ygl, 2 * cx - xa, pa)
     c.ln("HINH THUC", 2 * cx - xa, pa, cx + g.dx + g.ph, pa)
     xl = cx - g.dx - g.ph - 2.8
-    c.pl("CHU", False, [(xl, g.ygl + 1.4), (xl - 5.6, g.ygl + 5.6), (xl - 32.1, g.ygl + 5.6)])
-    c.arrow("CHU", xl - 5.6, g.ygl + 5.6, xl, g.ygl + 1.4, 1.6, 0.4)
-    c.tx("CHU", xl - 32.2, g.ygl + 6.4, 2.0, T_SOIL)
+    with c.item("soil", "Ghi chú đất đắp"):
+        c.pl("CHU", False, [(xl, g.ygl + 1.4), (xl - 5.6, g.ygl + 5.6), (xl - 32.1, g.ygl + 5.6)], fixed=(0,))
+        di = c.item_off()
+        c.arrow("CHU", xl - 5.6 + di[0], g.ygl + 5.6 + di[1], xl, g.ygl + 1.4, 1.6, 0.4, fixed=True)
+        c.tx("CHU", xl - 32.2, g.ygl + 6.4, 2.0, T_SOIL)
     title(c, cx, g.yd - 6.9, "A-A", f"TL:1/{g.den}")
 
 
@@ -170,15 +189,19 @@ def draw_cushion(c: Ctx, g: Geo):
     lbl = f"{T_CUSHION}{int(1000 * hc + 0.5)}mm"
     yl = (g.ylt + g.ylb) / 2 - 1.0
     wl = txtw(lbl, 2.0) / 2 + 0.8
-    hole = [(cx - wl, yl - 1.6), (cx + wl, yl - 1.6), (cx + wl, yl + 1.6), (cx - wl, yl + 1.6)]
+    with c.item("cushion", "Ghi chú đệm cát"):     # vẽ chữ trước để biết offset -> lỗ hatch đi theo chữ
+        c.txc("CHU", cx, yl, 2.0, lbl)
+        di = c.item_off()
+    hole = [(cx - wl + di[0], yl - 1.6 + di[1]), (cx + wl + di[0], yl - 1.6 + di[1]),
+            (cx + wl + di[0], yl + 1.6 + di[1]), (cx - wl + di[0], yl + 1.6 + di[1])]
     c.hatch("HATCH", [(cx - g.hPit, g.ylb), (cx + g.hPit, g.ylb), (2 * cx - xw, g.ylt), (xw, g.ylt)], "AR-SAND", 1.2,
             holes=[hole] if 2 * 1.6 < (g.ylt - g.ylb) else ())
     c.pl("VAI DIA", False, [(xf + 1.3, yv - 1.3), (xf, yv), (xw, yv), (cx - g.hPit, g.ylb), (cx + g.hPit, g.ylb),
                             (2 * cx - xw, yv), (2 * cx - xf, yv), (2 * cx - xf - 1.3, yv - 1.3)])
-    c.txc("CHU", cx, yl, 2.0, lbl)
     xg = cx + 0.3 * g.hPit
-    c.pl("CHU", False, [(xg, g.ylb), (xg - 3.5, g.ylb - 4.0), (xg - 3.5 - 25.0, g.ylb - 4.0)])
-    c.tx("CHU", xg - 3.5 - 25.0, g.ylb - 3.2, 2.0, T_GEO)
+    with c.item("geo", "Ghi chú vải địa"):
+        c.pl("CHU", False, [(xg, g.ylb), (xg - 3.5, g.ylb - 4.0), (xg - 3.5 - 25.0, g.ylb - 4.0)], fixed=(0,))
+        c.tx("CHU", xg - 3.5 - 25.0, g.ylb - 3.2, 2.0, T_GEO)
 
 
 def dim_section(c: Ctx, g: Geo):
@@ -274,8 +297,9 @@ def draw_plan(c: Ctx, g: Geo):
     cx, cy = g.cx, g.planCy
     plan_outline(c, g, cx, cy)
     c.ci("CHU", cx, cy, 1.2)
-    c.pl("CHU", False, [(cx, cy), (cx - 3.0, cy - 4.7), (cx - 17.4, cy - 4.7)])
-    c.tx("CHU", cx - 17.7, cy - 3.8, 2.0, T_AXIS)
+    with c.item("axis", "Ghi chú tim móng"):
+        c.pl("CHU", False, [(cx, cy), (cx - 3.0, cy - 4.7), (cx - 17.4, cy - 4.7)], fixed=(0,))
+        c.tx("CHU", cx - 17.7, cy - 3.8, 2.0, T_AXIS)
     draw_route(c, g, cx, cy)
     title(c, cx, cy - g.hLotY - 22.8, T_PLAN, f"TL:1/{g.den}")
 
@@ -322,6 +346,11 @@ def draw_summary(c: Ctx, g: Geo):
     w = sum(x[2] for x in cols)
     hh, rh, xr, y0 = 12.0, 8.0, 395.0, 267.0
     x0 = xr - w
+    with c.table("summary", "Bảng tổng kê"):
+        _summary_body(c, cols, w, hh, rh, xr, y0, x0)
+
+
+def _summary_body(c, cols, w, hh, rh, xr, y0, x0):
     c.txj("BANG", x0 + w / 2, y0 + 1.6, 2.2, "BẢNG TỔNG KÊ KHỐI LƯỢNG CHO 01 VỊ TRÍ MÓNG", 1, underline=True)
     for y in (y0, y0 - hh, y0 - hh - rh):
         c.ln("BANG", x0, y, xr, y)
@@ -341,16 +370,23 @@ def draw_summary(c: Ctx, g: Geo):
 
 def draw_note(c: Ctx, text):
     x = min(195.0, 261.0 - txtw(text, 2.0))      # không lấn sang khung tên
-    c.tx("CHU", x, 26.0, 3.5, "GHI CHÚ", underline=True)
-    c.tx("CHU", x, 20.5, 2.0, text)
+    note_at(c, x, 26.0, text)
+
+
+def note_at(c: Ctx, x, y, text):
+    with c.item("note", "Ghi chú"):
+        c.tx("CHU", x, y, 3.5, "GHI CHÚ", underline=True)
+        c.tx("CHU", x, y - 5.5, 2.0, text)
 
 
 def draw(c: Ctx, g: Geo):
     if not getattr(g, "kl", None):
         g.calc_kl()
-    draw_section(c, g)
-    dim_section(c, g)
-    draw_plan(c, g)
-    dim_plan(c, g, g.cx, g.planCy)
+    with c.group("section", "Mặt cắt A-A"):
+        draw_section(c, g)
+        dim_section(c, g)
+    with c.group("plan", "Mặt bằng móng"):
+        draw_plan(c, g)
+        dim_plan(c, g, g.cx, g.planCy)
     draw_summary(c, g)
     draw_note(c, "- CHI TIẾT XEM BẢN VẼ SỐ: " + str(g.p.get("CODE", "")))

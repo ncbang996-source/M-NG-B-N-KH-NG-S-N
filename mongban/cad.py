@@ -140,29 +140,128 @@ def dot_free(name, scale, dot=0.2):
     return out
 
 
-class Ctx:
-    """Vẽ vào modelspace với gốc toạ độ o (góc dưới trái khung tên)."""
+class Obj:
+    """Đối tượng dịch chuyển được: 'group' (cả hình) hoặc 'item' (chữ, dim, chú thích, bảng...)."""
+    __slots__ = ("id", "kind", "label", "bbox")
 
-    def __init__(self, doc, msp, ox=0.0, oy=0.0, den=100):
+    def __init__(self, oid, kind, label=""):
+        self.id, self.kind, self.label = oid, kind, label
+        self.bbox = [1e18, 1e18, -1e18, -1e18]
+
+    def add(self, x, y):
+        b = self.bbox
+        b[0], b[1], b[2], b[3] = min(b[0], x), min(b[1], y), max(b[2], x), max(b[3], y)
+
+    def ok(self):
+        return self.bbox[0] < self.bbox[2] + 1e-9
+
+
+class Ctx:
+    """Vẽ vào modelspace với gốc toạ độ o (góc dưới trái khung tên).
+
+    Dịch chuyển: offsets = {id: (dx, dy)} (mm giấy). Mọi điểm vẽ trong 1 nhóm cộng offset của nhóm;
+    điểm của 1 item cộng thêm offset của item, trừ các điểm 'neo' (mũi leader, điểm đo của dim)."""
+
+    def __init__(self, doc, msp, ox=0.0, oy=0.0, den=100, offsets=None, prefix="s1"):
         self.doc, self.msp, self.ox, self.oy = doc, msp, ox, oy
+        self.offsets = offsets or {}
+        self.prefix = prefix
+        self.objs: list[Obj] = []
+        self._stack: list[Obj] = []
+        self._count: dict = {}
         self.set_scale(den)
 
     def set_scale(self, den):
         self.den = int(den)
         self.dimname = ensure_dimstyle(self.doc, self.den)
 
-    def wp(self, x, y):
+    # --- đối tượng --------------------------------------------------------
+    def _new_id(self, name):
+        base = self._stack[0].id if self._stack else self.prefix
+        oid = f"{base}.{name}"
+        n = self._count.get(oid, 0)
+        self._count[oid] = n + 1
+        return oid if n == 0 else f"{oid}{n + 1}"
+
+    def begin(self, name, kind="item", label=""):
+        """Mở 1 đối tượng. Nhóm: name tuyệt đối (vd 'section'); item: tên tương đối trong nhóm."""
+        if kind == "group":
+            oid = f"{self.prefix}.{name}"
+        elif self._stack and (self._stack[-1] is None or self._stack[-1].kind in ("item", "table")):
+            self._stack.append(None)      # lồng trong item: không tạo item mới
+            return None
+        else:
+            oid = self._new_id(name)
+        o = Obj(oid, kind, label)
+        self._stack.append(o)
+        return o
+
+    def end(self):
+        o = self._stack.pop()
+        if o is not None and o.ok():
+            self.objs.append(o)
+            for p in self._stack:          # cộng bbox vào các đối tượng cha
+                if p is not None:
+                    p.add(o.bbox[0], o.bbox[1])
+                    p.add(o.bbox[2], o.bbox[3])
+
+    class _Scope:
+        def __init__(self, c, name, kind, label):
+            self.c, self.args = c, (name, kind, label)
+
+        def __enter__(self):
+            return self.c.begin(*self.args)
+
+        def __exit__(self, *a):
+            self.c.end()
+
+    def group(self, name, label=""):
+        return Ctx._Scope(self, name, "group", label)
+
+    def item(self, name, label=""):
+        return Ctx._Scope(self, name, "item", label)
+
+    def table(self, name, label=""):
+        """Bảng: dịch chuyển nguyên khối, chữ trong bảng không tách riêng."""
+        if self._stack:
+            return Ctx._Scope(self, name, "item", label)
+        return Ctx._Scope(self, name, "table", label)
+
+    def off(self, item=True):
+        dx = dy = 0.0
+        for o in self._stack:
+            if o is None:
+                continue
+            if o.kind == "item" and not item:
+                continue
+            d = self.offsets.get(o.id)
+            if d:
+                dx += d[0]
+                dy += d[1]
+        return dx, dy
+
+    def wp(self, x, y, item=True):
+        dx, dy = self.off(item)
+        x, y = x + dx, y + dy
+        for o in self._stack:
+            if o is not None and (item or o.kind != "item"):   # điểm neo không tính vào khung của item
+                o.add(x, y)
         return (self.ox + x, self.oy + y)
 
     # --- hình học ---------------------------------------------------------
-    def ln(self, lay, x1, y1, x2, y2):
-        return self.msp.add_line(self.wp(x1, y1), self.wp(x2, y2), dxfattribs={"layer": lay})
+    def ln(self, lay, x1, y1, x2, y2, fixed1=False, fixed2=False):
+        return self.msp.add_line(self.wp(x1, y1, not fixed1), self.wp(x2, y2, not fixed2), dxfattribs={"layer": lay})
 
-    def pl(self, lay, closed, pts, width=0.0, bulges=None):
+    def item_off(self):
+        """Offset riêng của item đang mở (không tính nhóm)."""
+        a, b = self.off(True), self.off(False)
+        return a[0] - b[0], a[1] - b[1]
+
+    def pl(self, lay, closed, pts, width=0.0, bulges=None, fixed=()):
         pp = []
         for i, p in enumerate(pts):
             b = bulges[i] if bulges else 0.0
-            x, y = self.wp(p[0], p[1])
+            x, y = self.wp(p[0], p[1], i not in fixed)
             pp.append((x, y, width, width, b))
         return self.msp.add_lwpolyline(pp, format="xyseb", close=closed, dxfattribs={"layer": lay})
 
@@ -170,21 +269,24 @@ class Ctx:
         return self.pl(lay, True, [(x1, y1), (x2, y1), (x2, y2), (x1, y2)])
 
     def ci(self, lay, x, y, r):
+        self.wp(x - r, y - r)
+        self.wp(x + r, y + r)
         return self.msp.add_circle(self.wp(x, y), r, dxfattribs={"layer": lay})
 
     def disc(self, lay, x, y, r):
         """Chấm tròn đặc bán kính r (polyline bề rộng r)."""
         return self.pl(lay, True, [(x - r / 2, y), (x + r / 2, y)], width=r, bulges=[1.0, 1.0])
 
-    def arrow(self, lay, x1, y1, x2, y2, ln, wid):
+    def arrow(self, lay, x1, y1, x2, y2, ln, wid, fixed=False):
         dx, dy = x2 - x1, y2 - y1
         d = math.hypot(dx, dy)
         if d < 1e-9:
             return
         ux, uy = dx / d, dy / d
         bx, by = x2 - ux * ln, y2 - uy * ln
-        self.msp.add_solid([self.wp(bx - uy * wid, by + ux * wid), self.wp(bx + uy * wid, by - ux * wid),
-                            self.wp(x2, y2), self.wp(x2, y2)], dxfattribs={"layer": lay})
+        it = not fixed
+        self.msp.add_solid([self.wp(bx - uy * wid, by + ux * wid, it), self.wp(bx + uy * wid, by - ux * wid, it),
+                            self.wp(x2, y2, it), self.wp(x2, y2, it)], dxfattribs={"layer": lay})
 
     def hatch(self, lay, pts, pattern, scale, angle=0.0, holes=()):
         h = self.msp.add_hatch(dxfattribs={"layer": lay})
@@ -198,11 +300,24 @@ class Ctx:
 
     # --- chữ --------------------------------------------------------------
     def _text(self, lay, x, y, h, s, align, rot=0.0, bold=False, underline=False):
+        top = self._stack[-1] if self._stack else "none"
+        auto = top == "none" or (top is not None and top.kind == "group")
+        if auto:                                   # chữ đứng riêng trong nhóm -> 1 item
+            self.begin("text", "item", s)
+        w = txtw(s, h, bold)
+        ox_ = {TextEntityAlignment.LEFT: 0.0, TextEntityAlignment.CENTER: -w / 2,
+               TextEntityAlignment.RIGHT: -w}.get(align, -w / 2)
+        oy_ = -h / 2 if align == TextEntityAlignment.MIDDLE_CENTER else 0.0
+        ca, sa = math.cos(math.radians(rot)), math.sin(math.radians(rot))
+        for u, v in ((ox_, oy_ - 0.3 * h), (ox_ + w, oy_ - 0.3 * h), (ox_ + w, oy_ + h), (ox_, oy_ + h)):
+            self.wp(x + u * ca - v * sa, y + u * sa + v * ca)
         t = self.msp.add_text(s, height=h, rotation=rot,
                               dxfattribs={"layer": lay, "style": STYLE_B if bold else STYLE})
         t.set_placement(self.wp(x, y), align=align)
         if underline:
             self._underline(lay, x, y, h, s, align, bold)
+        if auto:
+            self.end()
         return t
 
     def _underline(self, lay, x, y, h, s, align, bold):
@@ -234,19 +349,37 @@ class Ctx:
         a = {0: TextEntityAlignment.LEFT, 1: TextEntityAlignment.CENTER, 2: TextEntityAlignment.RIGHT}[just]
         return self._text(lay, x, y, h, s, a, **kw)
 
-    def mtx(self, lay, x, y, h, w, s):
-        m = self.msp.add_mtext(s, dxfattribs={"layer": lay, "style": STYLE, "char_height": h, "width": w,
-                                                "attachment_point": 1})
-        m.set_location(self.wp(x, y))
-        return m
-
     # --- kích thước -------------------------------------------------------
     def dim(self, lay, rot, p1, p2, pd, tp=None, dimname=None):
-        loc = self.wp(*tp) if tp else None
-        d = self.msp.add_linear_dim(base=self.wp(*pd), p1=self.wp(*p1), p2=self.wp(*p2), angle=rot,
-                                    location=loc, dimstyle=dimname or self.dimname,
-                                    dxfattribs={"layer": lay})
-        d.render()
+        """Dim: điểm đo p1, p2 cố định theo hình; đường dim và chữ dịch theo item."""
+        with self.item("dim", "Kích thước"):
+            dxi, dyi = self.off(True)
+            dxg, dyg = self.off(False)
+            di = (dxi - dxg, dyi - dyg)
+            if tp is None and (abs(di[0]) > 1e-9 or abs(di[1]) > 1e-9):
+                g = 2.0                           # khe + nửa chiều cao chữ
+                tp = ((p1[0] + p2[0]) / 2, pd[1] + g) if rot == 0.0 else (pd[0] - g, (p1[1] + p2[1]) / 2)
+            a, b = self.wp(*p1, item=False), self.wp(*p2, item=False)
+            base = self.wp(*pd)
+            loc = self.wp(*tp) if tp else None
+            # bbox: chữ quanh vị trí chữ ước lượng
+            tw = 7.0
+            if tp:
+                self.wp(tp[0] - tw / 2, tp[1] - 1.5)
+                self.wp(tp[0] + tw / 2, tp[1] + 1.5)
+            elif rot == 0.0:
+                self.wp((p1[0] + p2[0]) / 2 - tw / 2, pd[1])
+                self.wp((p1[0] + p2[0]) / 2 + tw / 2, pd[1] + 3.2)
+                self.wp(p1[0], pd[1] - 1)
+                self.wp(p2[0], pd[1] + 1)
+            else:
+                self.wp(pd[0] - 3.2, (p1[1] + p2[1]) / 2 - tw / 2)
+                self.wp(pd[0], (p1[1] + p2[1]) / 2 + tw / 2)
+                self.wp(pd[0] - 1, p1[1])
+                self.wp(pd[0] + 1, p2[1])
+            d = self.msp.add_linear_dim(base=base, p1=a, p2=b, angle=rot, location=loc,
+                                        dimstyle=dimname or self.dimname, dxfattribs={"layer": lay})
+            d.render()
         lw = LAYERS.get(lay, (0, 0, 18))[2]
         blk = self.doc.blocks.get(d.dimension.dxf.geometry)
         if blk is not None:

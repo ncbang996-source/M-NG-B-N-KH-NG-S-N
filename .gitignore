@@ -4,3 +4,4 @@ build/
 dist/
 *.pdf
 /out*.dxf
+*.layout.json

@@ -5,7 +5,7 @@ import math
 
 from .cad import Ctx, txtw
 from .geom import Geo, ceil_
-from .sheet1 import marker, sym, bolts_plan, plan_outline, dim_plan, dim_pier, title, draw_note, section_bolts
+from .sheet1 import marker, sym, bolts_plan, plan_outline, dim_plan, dim_pier, title, draw_note, note_at, section_bolts
 
 T_TOP = "THÉP LỚP TRÊN"
 T_BOT = "THÉP LỚP DƯỚI"
@@ -93,8 +93,8 @@ def tie(c: Ctx, lay, x0, y0, ux, uy, ln, r, tl):
          bulges=[0, 1.0, 0, 1.0, 0, 0])
 
 
-def tick45(c: Ctx, x, y):
-    c.pl("CHU", False, [(x - 0.48, y - 0.48), (x + 0.48, y + 0.48)], width=0.12)
+def tick45(c: Ctx, x, y, fixed=False):
+    c.pl("CHU", False, [(x - 0.48, y - 0.48), (x + 0.48, y + 0.48)], width=0.12, fixed=(0, 1) if fixed else ())
 
 
 def balloon(c: Ctx, x, y, num):
@@ -110,6 +110,10 @@ class Callouts:
         self.c, self.g = c, g
 
     def __call__(self, targets, bx, by, side, num, txt1, txt2=None, tick=True, mode=True):
+        with self.c.item(f"callout{num}", f"Chú thích thép {self.g.sq(num)}"):
+            return self._draw(targets, bx, by, side, num, txt1, txt2, tick, mode)
+
+    def _draw(self, targets, bx, by, side, num, txt1, txt2, tick, mode):
         c = self.c
         ln = max(txtw(txt1, 2.0), txtw(txt2, 2.0) if txt2 else 0.0)
         span = 3.0 + 1.3 + ln + 2.5
@@ -122,15 +126,15 @@ class Callouts:
                 dr = 1.0 if tp[0] > ex else -1.0
                 xk = ex + dr * max(2.0, 0.35 * abs(tp[0] - ex))
                 c.ln("CHU", ex, by, xk, by)
-                c.ln("CHU", xk, by, tp[0], tp[1])
+                c.ln("CHU", xk, by, tp[0], tp[1], fixed2=True)
             elif mode:
                 c.ln("CHU", ex, by, tp[0], by)
                 if abs(by - tp[1]) > 0.01:
-                    c.ln("CHU", tp[0], by, tp[0], tp[1])
+                    c.ln("CHU", tp[0], by, tp[0], tp[1], fixed2=True)
             else:
-                c.ln("CHU", ex, by, tp[0], tp[1])
+                c.ln("CHU", ex, by, tp[0], tp[1], fixed2=True)
             if tick:
-                tick45(c, tp[0], tp[1])
+                tick45(c, tp[0], tp[1], fixed=True)
         c.txj("CHU", tx, by + 0.8, 2.0, txt1, 2 if side > 0 else 0)
         if txt2:
             c.txj("CHU", tx, by - 2.8, 2.0, txt2, 2 if side > 0 else 0)
@@ -293,11 +297,14 @@ def d2_section_callouts(c: Ctx, g: Geo, co: Callouts):
             ys.append(hys[ii])
     if len(ys) < 2:
         ys = [by7 + st, by7 - st]
-    co([], bxp, by7, 1, "7", T_DAI, phi(p["RT_D"], p["RT_S"]))
-    c.ln("CHU", bxp, by7, xv7, by7)
-    c.ln("CHU", xv7, min([by7] + ys), xv7, max([by7] + ys))
-    for y in ys:
-        tick45(c, xv7, y)
+    with c.item("callout7", f"Chú thích thép {g.sq(7)}"):
+        co([], bxp, by7, 1, "7", T_DAI, phi(p["RT_D"], p["RT_S"]))
+        di = c.item_off()
+        c.ln("CHU", bxp, by7, xv7 + di[0], by7, fixed2=False)
+        c.ln("CHU", xv7, min([by7] + ys), xv7, max([by7] + ys), fixed1=True, fixed2=True)
+        c.ln("CHU", xv7, by7 + di[1], xv7 + di[0], by7 + di[1], fixed1=True, fixed2=True)
+        for y in ys:
+            tick45(c, xv7, y, fixed=True)
     # 6: 1 đường ngang chỉ vào 2 thanh chủ (giữa 2 đai), cách các chú thích 7 và 11 đủ xa
     y6 = None
     for j in range(len(hys) - 1):
@@ -411,6 +418,11 @@ def dim25(c: Ctx, cx, cy, hh):
 
 
 def small_title(c: Ctx, cx, cy, hh, s):
+    with c.item("title", "Tên hình"):
+        _small_title(c, cx, cy, hh, s)
+
+
+def _small_title(c: Ctx, cx, cy, hh, s):
     c.txj("CHU", cx, cy - hh - 13.0, 4.0, s, 1, underline=True)
     c.txj("CHU", cx, cy - hh - 18.0, 2.0, "1/25", 1)
 
@@ -691,23 +703,28 @@ def draw(c: Ctx, g: Geo):
     if not getattr(g, "kl", None):
         g.calc_kl()
     co = Callouts(c, g)
-    d2_section(c, g, co)
-    d2_dim_section(c, g)
-    d2_plan(c, g, co)
-    dim_plan(c, g, g.cx2, g.planCy2, lot=False)
-    d2_sec11(c, g, co, 212.0, 236.0)
-    d2_mesh(c, g, co, 298.0, 236.0)
+    with c.group("section", "Mặt cắt A-A (thép)"):
+        d2_section(c, g, co)
+        d2_dim_section(c, g)
+    with c.group("plan", "Mặt bằng thép"):
+        d2_plan(c, g, co)
+        dim_plan(c, g, g.cx2, g.planCy2, lot=False)
+    with c.group("sec11", "Mặt cắt 1-1"):
+        d2_sec11(c, g, co, 212.0, 236.0)
+    with c.group("mesh", "Lưới thép đầu trụ"):
+        d2_mesh(c, g, co, 298.0, 236.0)
     hh = 40.0 * g.p["BB"] / 2
-    ytb = d2_table(c, g, 264.0, min(188.0, 236.0 - hh - 27.0))
+    with c.table("table", "Bảng thống kê cốt thép"):
+        ytb = d2_table(c, g, 264.0, min(188.0, 236.0 - hh - 27.0))
     note = "- XEM GHI CHÚ CHUNG TẠI BẢN VẼ SỐ: " + str(g.p.get("CODE", ""))
     yb = g.planCy2 - g.hLotY - 40.0
     if ytb >= 79.0:
         # ghi chú đặt giữa bảng thống kê và khung tên -> bảng kích thước thanh dùng hết chiều cao bên trái
-        c.tx("CHU", 266.0, 71.5, 3.5, "GHI CHÚ", underline=True)
-        c.tx("CHU", 266.0, 66.8, 2.0, note)
+        note_at(c, 266.0, 71.5, note)
         ybot = 13.0
     else:
         draw_note(c, note)
         ybot = 33.0
     for x, pos in ((22.0, 2), (103.0, 4), (184.0, 5)):
-        d2_bartable(c, g, x, yb, pos, ybot=ybot)
+        with c.table(f"bar{pos}", f"Bảng kích thước thanh số {g.sq(pos)}"):
+            d2_bartable(c, g, x, yb, pos, ybot=ybot)
