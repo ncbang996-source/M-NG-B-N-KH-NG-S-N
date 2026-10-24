@@ -1,0 +1,38 @@
+# Vẽ Móng Bản
+
+App Windows chạy offline để vẽ nhanh bản vẽ **móng bản (móng cột đường dây)** từ file Excel. Cách làm giống lệnh Lisp `VEMONG` trong `MONG_BAN_KHONG_SUON.lsp`.
+
+## Chức năng
+- **Đọc Excel:** lấy số liệu từ sheet `TONG HOP` (kích thước, đệm cát, cốt thép, lớp bảo vệ, hình thức cột, giai đoạn...).
+- **Hiệu chỉnh:** sửa mọi thông số trên giao diện; app kiểm tra số liệu và tính ngay khối lượng bê tông, đệm cát, vải địa.
+- **Khung tên:** nạp file `.dxf`, mặc định dùng `assets/frames/KT-A3.dxf`.
+  - Chữ "TKCS"/"TKBVTC" trong khung tự đổi theo giai đoạn.
+  - Tên bản vẽ, tỷ lệ, tờ và mã số được điền theo toạ độ; chỉnh toạ độ ở **Cấu hình khung tên**.
+  - Nếu khung có attribute (TENBV, TYLE, TO, MASO...), app điền vào attribute.
+  - Logo đặt dạng OLE trong khung được trích ra và chèn vào PDF.
+- **Xem trước:** hiển thị đúng bản sẽ in PDF.
+  - TKCS có 1 tờ: hình thức móng.
+  - TKBVTC có 2 tờ: thêm tờ chi tiết thép.
+- **Xuất PDF:** A3, tỷ lệ 1:1, nét theo layer, font Roboto.
+- **Xuất AutoCAD (.dxf):** giữ layer có độ dày nét, dimension thật và khung tên dạng block. Mở bằng AutoCAD rồi Save As `.dwg` nếu cần.
+
+## Độ dày nét (theo layer)
+| Layer | Nét | Đối tượng |
+|---|---|---|
+| TRUC, HATCH | 0,13 | trục, hatch |
+| DIM, CHU, HINH THUC, VAI DIA, BANG | 0,18 | kích thước, chữ, leader, đường bao thường, bảng |
+| MAIN, MAT CAT | 0,30 | đường bao móng, ký hiệu mặt cắt |
+| DAI | 0,40 | thép đai, thép phân bố, lưới |
+| COTTHEP | 0,50 | thép chủ |
+
+## Tải file .exe
+Vào tab **Actions** của repo, mở lần build mới nhất, tải mục **VeMongBan-exe** ở phần *Artifacts*.
+
+## Tự build trên máy Windows
+Cài Python 3.12, rồi bấm đúp `build.bat`. File tạo ra là `dist\VeMongBan.exe`.
+
+## Chạy từ mã nguồn
+```
+pip install -r requirements.txt
+python app.py
+```

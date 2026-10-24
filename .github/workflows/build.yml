@@ -1,0 +1,25 @@
+name: Build Windows exe
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cài thư viện
+        run: pip install -r requirements.txt
+      - name: Kiểm tra dựng bản vẽ mẫu
+        run: python tests/smoke.py
+      - name: Đóng gói exe
+        run: pyinstaller --noconfirm VeMongBan.spec
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VeMongBan-exe
+          path: dist/VeMongBan.exe
