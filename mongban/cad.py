@@ -22,7 +22,7 @@ LAYERS = {
     "BANG":      (7, "CONTINUOUS", 18),  # bảng
     "MAIN":      (3, "CONTINUOUS", 30),  # đường bao móng
     "MAT CAT":   (3, "CONTINUOUS", 30),  # ký hiệu mặt cắt
-    "DAI":       (2, "CONTINUOUS", 40),  # thép đai, thép phân bố, lưới
+    "DAI":       (2, "CONTINUOUS", 35),  # thép đai, thép phân bố, lưới (mỏng hơn thép chủ)
     "COTTHEP":   (1, "CONTINUOUS", 50),  # thép chủ
 }
 _SIG = "d9bb90e55bf7014d"

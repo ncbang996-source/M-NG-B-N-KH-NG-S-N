@@ -27,7 +27,7 @@ App Windows chạy offline để vẽ nhanh bản vẽ **móng bản (móng cộ
 | TRUC, HATCH | 0,13 | trục, hatch |
 | DIM, CHU, HINH THUC, BANG | 0,18 | kích thước, chữ, leader, đường bao thường, bảng |
 | MAIN, MAT CAT, VAI DIA | 0,30 | đường bao móng, ký hiệu mặt cắt, vải địa |
-| DAI | 0,40 | thép đai, thép phân bố, lưới |
+| DAI | 0,35 | thép đai, thép phân bố, lưới |
 | COTTHEP | 0,50 | thép chủ |
 
 ## Tải file .exe
