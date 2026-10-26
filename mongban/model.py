@@ -150,15 +150,16 @@ def vol_cat(p) -> float:
 
 
 def area_vai(p) -> float:
+    """Tấm vải trải phẳng hình chữ nhật: mỗi cạnh = đáy + 2 mái + 2 dải gấp + 1
+    (dải gấp = mặt cát ngoài mép móng, +1 = phủ vào dưới móng 0.5 m mỗi bên); 4 góc tính đầy."""
     hc = p["HC"]
     if hc <= 1e-6:
         return 0.0
     l, b, mp, s = p["L"], p["B"], p["MPIT"], p["SLOPE"]
     d = s * hc
-    a1, b1 = l / 2 + mp, b / 2 + mp
-    a2, b2 = a1 + d, b1 + d
     ls = hc * math.sqrt(1 + s * s)
-    return 4 * a1 * b1 + 2 * ls * (a1 + a2 + b1 + b2) + 4 * (a2 * b2 - (l / 2 - 0.5) * (b / 2 - 0.5))
+    fold = mp + d
+    return (l + 2 * mp + 2 * ls + 2 * fold + 1) * (b + 2 * mp + 2 * ls + 2 * fold + 1)
 
 
 def bolt_text(p, npier=4) -> str:

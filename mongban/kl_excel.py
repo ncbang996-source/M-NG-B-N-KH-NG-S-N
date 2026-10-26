@@ -142,10 +142,12 @@ def export(p: dict, g: Geo, path: str):
     vc = line(3, "Đệm cát", "Vcat",
               f"=IF(TS_hc>0,TS_hc/6*({a1}*{b1}+({a1}+2*{dc})*({b1}+2*{dc})+4*({a1}+{dc})*({b1}+{dc})),0)",
               "Hình chóp cụt: hc/6·(A_đáy + A_trên + 4·A_giữa)", "m3", True)
-    line(4, "Vải địa kỹ thuật", "Svai",
-         f"=IF(TS_hc>0,{a1}*{b1}+2*TS_hc*SQRT(1+TS_m^2)*({a1}/2+{a1}/2+{dc}+{b1}/2+{b1}/2+{dc})"
-         f"+4*(({a1}/2+{dc})*({b1}/2+{dc})-(TS_L/2-0.5)*(TS_B/2-0.5)),0)",
-         "Đáy + mái hố trong lớp cát + phần gấp vào 500 mm trên mặt cát", "m2", True)
+    ls = line("", "Chiều dài mái nghiêng trong lớp cát", "ls", "=TS_hc*SQRT(1+TS_m^2)", "hc · √(1 + m²)", "m")
+    gf = line("", "Dải gấp trên mặt cát (ngoài mép móng)", "gf", f"=TS_mp+{dc}", "mp + dc", "m")
+    vx = line("", "Tấm vải theo X", "Vx", f"={a1}+2*{ls}+2*{gf}+1", "Đáy a1 + 2 mái + 2 dải gấp + 1 (phủ 0.5 m dưới móng mỗi bên)", "m")
+    vy = line("", "Tấm vải theo Y", "Vy", f"={b1}+2*{ls}+2*{gf}+1", "Đáy b1 + 2 mái + 2 dải gấp + 1 (phủ 0.5 m dưới móng mỗi bên)", "m")
+    line(4, "Vải địa kỹ thuật", "Svai", f"=IF(TS_hc>0,{vx}*{vy},0)",
+         "Tấm chữ nhật trải phẳng Vx · Vy (4 góc tính đầy, gồm phần chồng ở góc)", "m2", True)
 
     sec("C. ĐẤT, VÁN KHUÔN")
     vd = line(5, "Đào đất hố móng", "Vdao",
