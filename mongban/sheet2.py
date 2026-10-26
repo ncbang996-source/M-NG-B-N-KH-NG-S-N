@@ -229,10 +229,18 @@ def d2_section(c: Ctx, g: Geo, co: Callouts):
     yp = g.ypl - off - dtl
     xp = g.xpk(off)
     c.pl("COTTHEP", False, [(cx - xe, ye - hlt), (cx - xe, ye), (cx - xp, yp), (cx + xp, yp), (cx + xe, ye), (cx + xe, ye - hlt)])
-    for d in g.offs_ch(span):
+    rch = g.rbar("RB_CH_D")
+    for d in chair_xs(g, span):
         y = g.ytopc(abs(d), off, 3 * rdt)
-        xh = min(cx + d + hk, cx + xe)
-        c.pl("DAI", False, [(xh, yb3), (cx + d, yb3), (cx + d, y), (xh, y)])
+        if g.long_x():
+            # chân thanh chống chạy theo phương cạnh ngắn (vuông góc mặt cắt), buộc sát thép phương ngắn,
+            # đỡ thép phương cạnh dài -> trên mặt cắt chỉ thấy thân đứng, 2 chân thể hiện bằng chấm
+            c.ln("DAI", cx + d, yb3, cx + d, y)
+            c.disc("DAI", cx + d, yb3, rch)
+            c.disc("DAI", cx + d, y, rch)
+        else:
+            xh = min(cx + d + hk, cx + xe)
+            c.pl("DAI", False, [(xh, yb3), (cx + d, yb3), (cx + d, y), (xh, y)])
     # thép cổ móng bên phải
     pcx = cx + g.dx
     ytb = g.ytop - off
@@ -255,6 +263,26 @@ def d2_section(c: Ctx, g: Geo, co: Callouts):
     section_bolts(c, g, cx)
     yc2 = d2_section_callouts(c, g, co)
     d2_cutmark(c, g, yc2)
+
+
+def chair_xs(g: Geo, span):
+    """Vị trí thanh chống trên mặt cắt A-A. Khi thép phương ngắn nằm lớp trong, thanh chống đặt sát
+    cạnh thanh thép phương ngắn gần nhất (để buộc cùng)."""
+    xs = g.offs_ch(span)
+    if not g.long_x():
+        return xs
+    dots = g.offs_top(span, g.hPl / g.k, g.g("RB_BOT_S") / 1000.0)
+    gap = g.rbar("RB_BOT_D") + g.rbar("RB_CH_D")
+    out = []
+    for x in xs:
+        dd = min(dots, key=lambda v: abs(v - x))
+        side = 1.0 if x >= dd or abs(dd) < 1e-9 and x >= 0 else -1.0
+        side = side if dd != max(dots) else -1.0      # không đẩy ra ngoài thanh biên
+        side = side if dd != min(dots) else 1.0
+        nx = dd + side * gap
+        if all(abs(nx - o) > 1e-6 for o in out):
+            out.append(nx)
+    return sorted(out)
 
 
 def d2_cutmark(c: Ctx, g: Geo, ymin):
@@ -284,7 +312,7 @@ def d2_section_callouts(c: Ctx, g: Geo, co: Callouts):
     ybd, ybl, dtd, dtl = g.layer_levels()
     co([(cx + dots[1], g.ytopc(abs(dots[1]), off, dtd)), (cx + dots[2], g.ytopc(abs(dots[2]), off, dtd))],
        cx - g.hL + 8.0, by2, -1, "2", phi(p["RB_TOP_D"], p["RB_TOP_S"]), tick=False, mode=False)
-    dots = g.offs_ch(span)
+    dots = chair_xs(g, span)
     x5 = cx + prevx(dots, nearx(dots, -g.hL + 45.0))
     _, ex5 = co([(x5, (g.ybase + g.ypl) / 2)], cx - g.hL + 30.0, g.ylt2 - 13.0, -1, "5", T_CHONG,
                 phi(p["RB_CH_D"], p["RB_CH_S"]), mode=False)
