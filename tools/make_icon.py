@@ -103,9 +103,9 @@ def render(theme="la", size=SIZE):
 
 
 def main(out, theme="la"):
-    im = render(theme)
-    im.save(out, format="ICO", sizes=[(SIZE, SIZE)])
-    im.save(os.path.splitext(out)[0] + ".png")
+    big = render(theme, 256)                    # ICO nhiều cỡ để Explorer/taskbar hiện nét ở 16-256 px
+    big.save(out, format="ICO", sizes=[(n, n) for n in (16, 20, 24, 32, 40, 48, 64, 128, 256)])
+    render(theme).save(os.path.splitext(out)[0] + ".png")
 
 
 if __name__ == "__main__":
