@@ -93,6 +93,14 @@ REBAR_FIELDS = [
 ]
 STAGES = ["TKCS", "TKBVTC", "TKKT"]
 
+# bảng màu giao diện
+C = {
+    "navy": "#1F3A5F", "blue": "#2E75B6", "green": "#2E8B57", "orange": "#F28C28", "red": "#C62828",
+    "bg": "#EEF3F9", "bar": "#E2EBF6", "card": "#FFFFFF", "line": "#C3D2E4", "text": "#1E2A38",
+    "muted": "#5B6B80", "stage": "#3C4B5C",
+    "sections": ["#2E75B6", "#138D90", "#D9822B", "#7B5EA7", "#2E8B57"],
+}
+
 
 class App(tk.Tk):
     def __init__(self):
@@ -139,54 +147,120 @@ class App(tk.Tk):
             self.after(300, self.preview)
 
     # ------------------------------------------------------------------ UI
-    def _build_ui(self):
-        style = ttk.Style(self)
+    def _theme(self):
+        st = ttk.Style(self)
         try:
-            style.theme_use("vista" if sys.platform == "win32" else "clam")
+            st.theme_use("clam")               # theme cho phép đổi màu nút, ô nhập
         except tk.TclError:
             pass
-        style.configure("Head.TLabel", font=("Segoe UI", 10, "bold"))
-        style.configure("Err.TLabel", foreground="#b00020")
-        style.configure("Ok.TLabel", foreground="#1b5e20")
+        f = ("Segoe UI", 10) if sys.platform == "win32" else ("DejaVu Sans", 9)
+        fb = (f[0], f[1], "bold")
+        self.configure(background=C["bg"])
+        st.configure(".", font=f, background=C["card"], foreground=C["text"])
+        st.configure("TFrame", background=C["card"])
+        st.configure("TLabel", background=C["card"], foreground=C["text"])
+        st.configure("Bg.TFrame", background=C["bg"])
+        st.configure("Bar.TFrame", background=C["bar"])
+        st.configure("Bar.TLabel", background=C["bar"], foreground=C["muted"], font=(f[0], f[1] - 1))
+        st.configure("Info.TLabel", background=C["bg"], foreground=C["muted"])
+        st.configure("Bar.TCheckbutton", background=C["bar"], foreground=C["navy"])
+        st.map("Bar.TCheckbutton", background=[("active", C["bar"])])
+        st.configure("Info2.TLabel", background=C["card"], foreground=C["blue"], font=fb)
+        st.configure("Err.TLabel", background=C["card"], foreground=C["red"])
+        st.configure("Sub.TLabel", background=C["card"], foreground=C["muted"])
+        for nm, bg, fg, hov in (("Tool", "#FFFFFF", C["navy"], "#DCE9F7"),
+                                ("Primary", C["blue"], "#FFFFFF", "#245E93"),
+                                ("Export", C["green"], "#FFFFFF", "#22704A"),
+                                ("Small", C["bar"], C["navy"], "#C9DAEE")):
+            st.configure(f"{nm}.TButton", background=bg, foreground=fg, bordercolor=C["line"],
+                         lightcolor=bg, darkcolor=bg, focuscolor=bg, padding=(10, 5) if nm != "Small" else (6, 2),
+                         font=fb if nm in ("Primary", "Export") else f, relief="flat")
+            st.map(f"{nm}.TButton", background=[("pressed", hov), ("active", hov)],
+                   lightcolor=[("active", hov)], darkcolor=[("active", hov)])
+        st.configure("TEntry", fieldbackground="#FFFFFF", bordercolor=C["line"], lightcolor=C["line"], padding=3)
+        st.map("TEntry", bordercolor=[("focus", C["blue"])], lightcolor=[("focus", C["blue"])])
+        st.configure("TCombobox", fieldbackground="#FFFFFF", bordercolor=C["line"], lightcolor=C["line"],
+                     arrowcolor=C["blue"], padding=2)
+        st.map("TCombobox", bordercolor=[("focus", C["blue"])], fieldbackground=[("readonly", "#FFFFFF")])
+        st.configure("Vertical.TScrollbar", background=C["bar"], troughcolor=C["bg"], bordercolor=C["bg"],
+                     arrowcolor=C["blue"])
+        st.configure("TPanedwindow", background=C["bg"])
+        return f, fb
 
-        bar = ttk.Frame(self, padding=(6, 4))
+    def _build_ui(self):
+        f, fb = self._theme()
+        self._f = f
+        # dải tiêu đề
+        hdr = tk.Frame(self, background=C["navy"], height=54)
+        hdr.pack(side="top", fill="x")
+        try:
+            from PIL import Image, ImageTk
+            im = Image.open(os.path.join(cad.resource_dir(), "icon.png")).convert("RGBA").resize((40, 40))
+            self._logo = ImageTk.PhotoImage(im)
+            tk.Label(hdr, image=self._logo, background=C["navy"]).pack(side="left", padx=(12, 8), pady=6)
+        except Exception:
+            pass
+        tt = tk.Frame(hdr, background=C["navy"])
+        tt.pack(side="left", pady=4)
+        tk.Label(tt, text=APP_NAME, background=C["navy"], foreground="#FFFFFF",
+                 font=(f[0], f[1] + 5, "bold")).pack(anchor="w")
+        tk.Label(tt, text="Vẽ móng bản không sườn  •  Excel → PDF / AutoCAD DXF / Excel khối lượng",
+                 background=C["navy"], foreground="#A9C7EA", font=(f[0], f[1] - 1)).pack(anchor="w")
+        tk.Label(hdr, text=f"phiên bản {APP_VER}", background=C["navy"], foreground="#7FA3CC",
+                 font=(f[0], f[1] - 1)).pack(side="right", padx=14)
+        tk.Frame(self, background=C["orange"], height=3).pack(side="top", fill="x")
+
+        # thanh công cụ chia nhóm
+        bar = ttk.Frame(self, style="Bar.TFrame", padding=(8, 4, 8, 6))
         bar.pack(side="top", fill="x")
-        b = lambda t, cmd: ttk.Button(bar, text=t, command=cmd)
-        b("Mở Excel...", self.pick_excel).pack(side="left")
-        b("Đọc lại Excel", lambda: self.read_excel(self.xls)).pack(side="left", padx=(4, 0))
-        ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=8)
-        b("Nạp khung tên...", self.pick_frame).pack(side="left")
-        b("Cấu hình khung tên...", self.edit_fields).pack(side="left", padx=(4, 0))
-        ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=8)
-        b("Xem trước", self.preview).pack(side="left")
-        self.v_auto = tk.BooleanVar(value=self.st.get("auto", True))
-        ttk.Checkbutton(bar, text="Tự cập nhật", variable=self.v_auto).pack(side="left", padx=6)
-        self.v_arr = tk.BooleanVar(value=False)
-        ttk.Checkbutton(bar, text="Sắp xếp (kéo thả)", variable=self.v_arr,
-                        command=self._redraw).pack(side="left", padx=(0, 6))
-        ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=8)
-        b("Xuất PDF...", self.export_pdf).pack(side="left")
-        b("Xuất AutoCAD (DXF)...", self.export_dxf).pack(side="left", padx=(4, 0))
-        b("Xuất Excel khối lượng...", self.export_xlsx).pack(side="left", padx=(4, 0))
 
-        info = ttk.Frame(self, padding=(8, 0))
+        def group(title):
+            g = ttk.Frame(bar, style="Bar.TFrame")
+            g.pack(side="left", padx=(0, 14))
+            ttk.Label(g, text=title.upper(), style="Bar.TLabel").pack(anchor="w")
+            row = ttk.Frame(g, style="Bar.TFrame")
+            row.pack(anchor="w")
+            return row
+
+        def btn(parent, t, cmd, sty="Tool"):
+            ttk.Button(parent, text=t, command=cmd, style=f"{sty}.TButton").pack(side="left", padx=(0, 4))
+
+        g1 = group("Dữ liệu")
+        btn(g1, "Mở Excel...", self.pick_excel)
+        btn(g1, "⟳ Đọc lại", lambda: self.read_excel(self.xls))
+        g2 = group("Khung tên")
+        btn(g2, "Nạp khung tên...", self.pick_frame)
+        btn(g2, "⚙ Cấu hình...", self.edit_fields)
+        g3 = group("Xem")
+        btn(g3, "▶  Xem trước", self.preview, "Primary")
+        self.v_auto = tk.BooleanVar(value=self.st.get("auto", True))
+        ttk.Checkbutton(g3, text="Tự cập nhật", variable=self.v_auto, style="Bar.TCheckbutton").pack(side="left", padx=6)
+        self.v_arr = tk.BooleanVar(value=False)
+        ttk.Checkbutton(g3, text="Sắp xếp (kéo thả)", variable=self.v_arr, style="Bar.TCheckbutton",
+                        command=self._redraw).pack(side="left", padx=(0, 6))
+        g4 = group("Xuất")
+        btn(g4, "PDF", self.export_pdf, "Export")
+        btn(g4, "AutoCAD DXF", self.export_dxf, "Export")
+        btn(g4, "Excel khối lượng", self.export_xlsx, "Export")
+
+        info = ttk.Frame(self, style="Bg.TFrame", padding=(10, 3))
         info.pack(side="top", fill="x")
-        self.l_xls = ttk.Label(info, text="")
+        self.l_xls = ttk.Label(info, text="", style="Info.TLabel")
         self.l_xls.pack(side="left")
-        self.l_frame = ttk.Label(info, text="")
+        self.l_frame = ttk.Label(info, text="", style="Info.TLabel")
         self.l_frame.pack(side="right")
 
         pw = ttk.PanedWindow(self, orient="horizontal")
-        pw.pack(fill="both", expand=True, padx=6, pady=4)
-        left = ttk.Frame(pw)
-        right = ttk.Frame(pw)
+        pw.pack(fill="both", expand=True, padx=8, pady=(0, 6))
+        left = tk.Frame(pw, background=C["card"], highlightbackground=C["line"], highlightthickness=1)
+        right = tk.Frame(pw, background=C["card"], highlightbackground=C["line"], highlightthickness=1)
         pw.add(left, weight=0)
         pw.add(right, weight=1)
 
         # khung trái cuộn được
-        cv = tk.Canvas(left, width=430, highlightthickness=0)
+        cv = tk.Canvas(left, width=440, highlightthickness=0, background=C["card"])
         sb = ttk.Scrollbar(left, orient="vertical", command=cv.yview)
-        body = ttk.Frame(cv)
+        body = ttk.Frame(cv, padding=(6, 4, 10, 10))
         body.bind("<Configure>", lambda e: cv.configure(scrollregion=cv.bbox("all")))
         cv.create_window((0, 0), window=body, anchor="nw")
         cv.configure(yscrollcommand=sb.set)
@@ -198,18 +272,19 @@ class App(tk.Tk):
         self._form(body)
 
         # xem trước
-        top = ttk.Frame(right)
+        top = ttk.Frame(right, padding=(8, 6))
         top.pack(side="top", fill="x")
+        ttk.Label(top, text="XEM TRƯỚC BẢN IN", style="Info2.TLabel").pack(side="left", padx=(0, 12))
         self.v_page = tk.StringVar(value="Tờ 1")
         self.cb_page = ttk.Combobox(top, textvariable=self.v_page, state="readonly", width=8, values=["Tờ 1"])
         self.cb_page.pack(side="left")
         self.cb_page.bind("<<ComboboxSelected>>", lambda e: self._show_page(self.cb_page.current()))
-        ttk.Button(top, text="Vừa khung", command=self.zoom_fit).pack(side="left", padx=4)
-        ttk.Button(top, text="+", width=3, command=lambda: self.zoom_by(1.25)).pack(side="left")
-        ttk.Button(top, text="−", width=3, command=lambda: self.zoom_by(0.8)).pack(side="left", padx=(2, 0))
-        self.l_state = ttk.Label(top, text="")
+        ttk.Button(top, text="Vừa khung", command=self.zoom_fit, style="Small.TButton").pack(side="left", padx=(6, 2))
+        ttk.Button(top, text="+", width=3, command=lambda: self.zoom_by(1.25), style="Small.TButton").pack(side="left")
+        ttk.Button(top, text="−", width=3, command=lambda: self.zoom_by(0.8), style="Small.TButton").pack(side="left", padx=(2, 0))
+        self.l_state = ttk.Label(top, text="", style="Sub.TLabel")
         self.l_state.pack(side="left", padx=10)
-        self.pv = tk.Canvas(right, background="#808080", highlightthickness=0)
+        self.pv = tk.Canvas(right, background=C["stage"], highlightthickness=0)
         self.pv.pack(fill="both", expand=True)
         self.pv.bind("<Configure>", lambda e: self._redraw())
         self.pv.bind("<ButtonPress-1>", self._press)
@@ -223,10 +298,11 @@ class App(tk.Tk):
         self.pv.bind("<Button-4>", lambda e: self.zoom_by(1.15))
         self.pv.bind("<Button-5>", lambda e: self.zoom_by(1 / 1.15))
 
-        st = ttk.Frame(self, padding=(8, 2))
-        st.pack(side="bottom", fill="x")
-        self.l_msg = ttk.Label(st, text="")
-        self.l_msg.pack(side="left")
+        st = tk.Frame(self, background=C["navy"])
+        st.pack(side="bottom", fill="x", before=pw)
+        self.l_msg = tk.Label(st, text="", background=C["navy"], foreground="#E3ECF7", anchor="w",
+                              font=(f[0], f[1] - 1), padx=10, pady=3)
+        self.l_msg.pack(side="left", fill="x")
 
     def _wheel_left(self, e):
         self._scroll_left.yview_scroll(int(-e.delta / 120), "units")
@@ -240,9 +316,15 @@ class App(tk.Tk):
     def _form(self, body):
         r = 0
 
+        colors = iter(C["sections"])
+
         def head(t):
             nonlocal r
-            ttk.Label(body, text=t, style="Head.TLabel").grid(row=r, column=0, columnspan=4, sticky="w", pady=(10, 2), padx=4)
+            col = next(colors)
+            h = tk.Frame(body, background=col)
+            h.grid(row=r, column=0, columnspan=4, sticky="we", pady=(12, 4))
+            tk.Label(h, text=t.upper(), background=col, foreground="#FFFFFF",
+                     font=(self._f[0], self._f[1], "bold"), padx=8, pady=3).pack(side="left")
             r += 1
 
         def row(lbl, key, w=12, values=None):
@@ -289,9 +371,9 @@ class App(tk.Tk):
         ttk.Label(body, text="Tỷ lệ 1/").grid(row=r, column=0, sticky="w", padx=(10, 4))
         ttk.Combobox(body, textvariable=self._var("SCALE"), values=[str(s) for s in model.SCALES], width=6,
                      state="readonly").grid(row=r, column=1, sticky="w")
-        ttk.Button(body, text="Tự chọn", command=self.auto_scale).grid(row=r, column=2, sticky="w")
+        ttk.Button(body, text="Tự chọn", command=self.auto_scale, style="Small.TButton").grid(row=r, column=2, sticky="w")
         r += 1
-        self.l_info = ttk.Label(body, text="", wraplength=410, justify="left")
+        self.l_info = ttk.Label(body, text="", style="Info2.TLabel", wraplength=410, justify="left")
         self.l_info.grid(row=r, column=0, columnspan=4, sticky="w", padx=6, pady=(10, 2))
         r += 1
         self.l_err = ttk.Label(body, text="", style="Err.TLabel", wraplength=410, justify="left")
@@ -575,7 +657,7 @@ class App(tk.Tk):
         cw, ch = self.pv.winfo_width(), self.pv.winfo_height()
         x0 = max(10, (cw - w) // 2)
         y0 = max(10, (ch - h) // 2)
-        self.pv.create_rectangle(x0 + 4, y0 + 4, x0 + w + 4, y0 + h + 4, fill="#555", outline="")
+        self.pv.create_rectangle(x0 + 4, y0 + 4, x0 + w + 4, y0 + h + 4, fill="#232E3A", outline="")
         self.pv.create_image(x0, y0, image=self._tkimg, anchor="nw")
         self.pv.configure(scrollregion=(0, 0, max(cw, w + 20), max(ch, h + 20)))
         self._geom = (x0, y0, w / export.PAGE_W)
