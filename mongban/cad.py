@@ -27,8 +27,12 @@ LAYERS = {
 }
 STYLE = "ROBOTO_CONDENSED"
 STYLE_B = "ROBOTO_CONDENSED-B"
-FONT_R = "RobotoCondensed-Regular.ttf"   # font chữ bản vẽ
-FONT_B = "RobotoCondensed-Bold.ttf"
+# Font chữ bản vẽ: đặt đúng tên file như font Roboto Condensed cài trên máy (khung tên SEIAC cũng dùng),
+# kèm tên họ font (XDATA) để AutoCAD hiện "Roboto Condensed" trong Text Style.
+FONT_R = "Roboto_Condensed-Regular.ttf"
+FONT_B = "Roboto_Condensed-Bold.ttf"
+FONT_FAMILY = "Roboto Condensed"
+WIDTH = 0.8                                # Width Factor của kiểu chữ
 
 
 def resource_dir() -> str:
@@ -64,9 +68,9 @@ def txtw(s: str, h: float, bold=False) -> float:
     """Bề rộng thật của dòng chữ (chiều cao chữ h)."""
     s = s.replace("%%C", "Ø").replace("%%c", "Ø").replace("%%P", "±").replace("%%p", "±")
     try:
-        return _font(FONT_B if bold else FONT_R).text_width(s) * h
+        return _font(FONT_B if bold else FONT_R).text_width(s) * h * WIDTH
     except Exception:
-        return 0.62 * h * len(s)
+        return 0.62 * h * len(s) * WIDTH
 
 
 def new_doc():
@@ -76,14 +80,22 @@ def new_doc():
     doc.header["$LTSCALE"] = 1.0
     doc.header["$PSLTSCALE"] = 0
     doc.header["$LWDISPLAY"] = 1
-    if STYLE not in doc.styles:
-        doc.styles.new(STYLE, dxfattribs={"font": FONT_R})
-    if STYLE_B not in doc.styles:
-        doc.styles.new(STYLE_B, dxfattribs={"font": FONT_B})
+    ensure_styles(doc)
     for name, (col, lt, lw) in LAYERS.items():
         if name not in doc.layers:
             doc.layers.add(name, color=col, linetype=lt if lt in doc.linetypes else "CONTINUOUS", lineweight=lw)
     return doc
+
+
+def ensure_styles(doc):
+    """Kiểu chữ ROBOTO_CONDENSED (Regular) và ROBOTO_CONDENSED-B (Bold): Height 0, Width Factor 0.8."""
+    for name, f, bold in ((STYLE, FONT_R, False), (STYLE_B, FONT_B, True)):
+        st = doc.styles.get(name) if name in doc.styles else doc.styles.new(name)
+        st.dxf.font = f
+        st.dxf.height = 0.0
+        st.dxf.width = WIDTH
+        st.dxf.oblique = 0.0
+        st.set_extended_font_data(FONT_FAMILY, italic=False, bold=bold)
 
 
 def ensure_dimstyle(doc, den: int) -> str:
@@ -314,7 +326,7 @@ class Ctx:
         for u, v in ((ox_, oy_ - 0.3 * h), (ox_ + w, oy_ - 0.3 * h), (ox_ + w, oy_ + h), (ox_, oy_ + h)):
             self.wp(x + u * ca - v * sa, y + u * sa + v * ca)
         t = self.msp.add_text(s, height=h, rotation=rot,
-                              dxfattribs={"layer": lay, "style": STYLE_B if bold else STYLE})
+                              dxfattribs={"layer": lay, "style": STYLE_B if bold else STYLE, "width": WIDTH})
         t.set_placement(self.wp(x, y), align=align)
         if underline:
             self._underline(lay, x, y, h, s, align, bold)

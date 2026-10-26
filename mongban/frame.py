@@ -126,10 +126,7 @@ def setup_doc(doc):
     doc.header["$LWDISPLAY"] = 1
     if "MB_CENTER" not in doc.linetypes:
         doc.linetypes.add("MB_CENTER", pattern=[5.9, 4.0, -0.8, 0.3, -0.8], description="Truc ____ . ____ .")
-    if cad.STYLE not in doc.styles:
-        doc.styles.new(cad.STYLE, dxfattribs={"font": cad.FONT_R})
-    if cad.STYLE_B not in doc.styles:
-        doc.styles.new(cad.STYLE_B, dxfattribs={"font": cad.FONT_B})
+    cad.ensure_styles(doc)
     for name, (col, lt, lw) in cad.LAYERS.items():
         ltn = "MB_CENTER" if lt == "CENTER" else "CONTINUOUS"
         if name in doc.layers:
@@ -186,7 +183,7 @@ def _simple_frame(blk):
     blk.add_line((349.7, 10), (349.7, 20), dxfattribs=a)
     blk.add_line((334.7, 15), (364.7, 15), dxfattribs=a)
     for s_, x, y in (("TÊN BẢN VẼ:", 336.0, 31.4), ("TL:", 336.0, 11.0), ("TỜ:", 351.0, 11.0)):
-        t = blk.add_text(s_, height=2.0, dxfattribs={"layer": "KHUNG", "style": cad.STYLE})
+        t = blk.add_text(s_, height=2.0, dxfattribs={"layer": "KHUNG", "style": cad.STYLE, "width": cad.WIDTH})
         t.set_placement((x, y))
 
 
@@ -221,6 +218,6 @@ def place(doc, ox, oy, values: dict, fields: dict, tags: set):
             h *= wmax / w
         from ezdxf.enums import TextEntityAlignment as A
         al = {"MC": A.MIDDLE_CENTER, "L": A.LEFT, "C": A.CENTER, "R": A.RIGHT}.get(cfg.get("align", "L"), A.LEFT)
-        t = msp.add_text(v, height=h, dxfattribs={"layer": "CHU", "style": cad.STYLE_B if bold else cad.STYLE})
+        t = msp.add_text(v, height=h, dxfattribs={"layer": "CHU", "style": cad.STYLE_B if bold else cad.STYLE, "width": cad.WIDTH})
         t.set_placement((ox + float(cfg["x"]), oy + float(cfg["y"])), align=al)
     return ins
