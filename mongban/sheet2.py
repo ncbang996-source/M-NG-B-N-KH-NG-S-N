@@ -215,16 +215,18 @@ def d2_section(c: Ctx, g: Geo, co: Callouts):
     # thép bản móng
     off, offb = k * cov, k * p["COVER_B"]
     span = g.bar_span()
-    yb1, yb3 = g.ybase + offb + rdb, g.ybase + offb + 3 * rdb
+    # thép theo phương cạnh dài nằm ngoài cùng (chịu mômen lớn hơn)
+    ybd, ybl, dtd, dtl = g.layer_levels()
+    yb3 = max(ybd, ybl)                                  # lớp trong của lưới dưới (chân thanh chống)
     for d in g.offs_top(span, g.hPl / k, p["RB_BOT_S"] / 1000.0):
-        c.disc("COTTHEP", cx + d, yb1, rdb)
+        c.disc("COTTHEP", cx + d, ybd, rdb)
     xe = g.hL - off - rd
-    c.ln("COTTHEP", cx - xe, yb3, cx + xe, yb3)
+    c.ln("COTTHEP", cx - xe, ybl, cx + xe, ybl)
     hlt = k * g.hook_top()
     for d in g.offs_top(span, g.hPl / k, p["RB_TOP_S"] / 1000.0):
-        c.disc("COTTHEP", cx + d, g.ytopc(abs(d), off, rdt), rdt)
-    ye = g.ytopc(xe, off, 3 * rdt)
-    yp = g.ypl - off - 3 * rdt
+        c.disc("COTTHEP", cx + d, g.ytopc(abs(d), off, dtd), rdt)
+    ye = g.ytopc(xe, off, dtl)
+    yp = g.ypl - off - dtl
     xp = g.xpk(off)
     c.pl("COTTHEP", False, [(cx - xe, ye - hlt), (cx - xe, ye), (cx - xp, yp), (cx + xp, yp), (cx + xe, ye), (cx + xe, ye - hlt)])
     for d in g.offs_ch(span):
@@ -279,21 +281,22 @@ def d2_section_callouts(c: Ctx, g: Geo, co: Callouts):
     # trái: lớp trên (2), thép chống (5), lớp dưới (1)
     dots = g.offs_top(span, g.hPl / k, p["RB_TOP_S"] / 1000.0)
     by2 = g.ypl + 14.6
-    co([(cx + dots[1], g.ytopc(abs(dots[1]), off, rdt)), (cx + dots[2], g.ytopc(abs(dots[2]), off, rdt))],
+    ybd, ybl, dtd, dtl = g.layer_levels()
+    co([(cx + dots[1], g.ytopc(abs(dots[1]), off, dtd)), (cx + dots[2], g.ytopc(abs(dots[2]), off, dtd))],
        cx - g.hL + 8.0, by2, -1, "2", phi(p["RB_TOP_D"], p["RB_TOP_S"]), tick=False, mode=False)
     dots = g.offs_ch(span)
     x5 = cx + prevx(dots, nearx(dots, -g.hL + 45.0))
     _, ex5 = co([(x5, (g.ybase + g.ypl) / 2)], cx - g.hL + 30.0, g.ylt2 - 13.0, -1, "5", T_CHONG,
                 phi(p["RB_CH_D"], p["RB_CH_S"]), mode=False)
     dots = g.offs_top(span, g.hPl / k, p["RB_BOT_S"] / 1000.0)
-    co([(cx + dots[1], g.ybase + offb + rdb), (cx + dots[2], g.ybase + offb + rdb)],
+    co([(cx + dots[1], ybd), (cx + dots[2], ybd)],
        cx - g.hL - 9.8, g.ylt2 - 7.0, -1, "1", phi(p["RB_BOT_D"], p["RB_BOT_S"]), tick=False, mode=False)
     # phải: lớp dưới theo X (3), lớp trên theo X (4)
-    co([(cx + gapx(dots, 0.7 * g.hL), g.ybase + offb + 3 * rdb)], bxr, g.ylt2 - 7.0, 1, "3",
+    co([(cx + gapx(dots, 0.7 * g.hL), ybl)], bxr, g.ylt2 - 7.0, 1, "3",
        phi(p["RB_BOT_D"], p["RB_BOT_S"]))
     dots = g.offs_top(span, g.hPl / k, p["RB_TOP_S"] / 1000.0)
     xt = cx + gapx(dots, xt - cx)
-    co([(xt, g.ytopc(abs(xt - cx), off, 3 * rdt))], bxr, g.ypl + 4.5, 1, "4", phi(p["RB_TOP_D"], p["RB_TOP_S"]))
+    co([(xt, g.ytopc(abs(xt - cx), off, dtl))], bxr, g.ypl + 4.5, 1, "4", phi(p["RB_TOP_D"], p["RB_TOP_S"]))
     # 11 (lưới đầu trụ): chỉ vào 2 thanh tròn ở 2 lớp lưới
     ytb = g.ytop - off
     ml, ms = int(p["RL_N"]), k * p["RL_S"] / 1000.0

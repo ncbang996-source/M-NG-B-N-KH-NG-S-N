@@ -117,6 +117,19 @@ class Geo:
         return (self.yed - self.ybase) / self.k - self.g("COVER") - self.g("COVER_B") - \
             (self.g("RB_TOP_D") + self.g("RB_BOT_D")) / 1000.0
 
+    def long_x(self):
+        """True nếu cạnh dài theo X (L >= B): thép theo X nằm ngoài cùng ở cả lớp dưới và lớp trên."""
+        return self.g("L") >= self.g("B")
+
+    def layer_levels(self):
+        """Cao độ tâm các lớp thép bản móng trên mặt cắt A-A (cắt theo X).
+        Trả về (y chấm lớp dưới, y thanh X lớp dưới, độ sâu chấm lớp trên, độ sâu thanh X lớp trên)."""
+        rdb, rdt = self.rbar("RB_BOT_D"), self.rbar("RB_TOP_D")
+        y0 = self.ybase + self.k * self.g("COVER_B")
+        if self.long_x():        # thanh theo X (cạnh dài) ngoài cùng, thanh theo Y (chấm) phía trong
+            return y0 + 3 * rdb, y0 + rdb, 3 * rdt, rdt
+        return y0 + rdb, y0 + 3 * rdb, rdt, 3 * rdt
+
     def bar_span(self):
         """Chiều dài rải thép bản móng theo X (m) dùng cho mặt cắt."""
         rd = max(self.rbar("RB_BOT_D"), self.rbar("RB_TOP_D"))
