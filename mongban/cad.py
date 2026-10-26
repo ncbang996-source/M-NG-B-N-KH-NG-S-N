@@ -25,6 +25,7 @@ LAYERS = {
     "DAI":       (2, "CONTINUOUS", 40),  # thép đai, thép phân bố, lưới
     "COTTHEP":   (1, "CONTINUOUS", 50),  # thép chủ
 }
+_SIG = "d9bb90e55bf7014d"
 STYLE = "ROBOTO_CONDENSED"
 STYLE_B = "ROBOTO_CONDENSED-B"
 # Font chữ bản vẽ: đặt đúng tên file như font Roboto Condensed cài trên máy (khung tên SEIAC cũng dùng),

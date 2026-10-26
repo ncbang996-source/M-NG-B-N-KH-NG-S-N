@@ -33,6 +33,9 @@ def title_values(p: dict, den: int, sheet: int, nsheet: int) -> dict:
 
 
 def build(p: dict, frame_path: str | None = None, fields: dict | None = None, offsets: dict | None = None) -> Result:
+    from . import _meta
+    if not _meta.check(cad._SIG):
+        raise RuntimeError("Tệp chương trình đã bị thay đổi.")
     err = model.validate(p)
     if err:
         raise ValueError(err)

@@ -18,4 +18,5 @@ exe = EXE(
     upx=False,
     console=False,
     icon='assets/icon.ico',
+    version='version_info.txt',
 )

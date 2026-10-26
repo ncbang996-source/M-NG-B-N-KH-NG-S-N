@@ -13,10 +13,10 @@ import tkinter as tk
 import traceback
 from tkinter import filedialog, messagebox, ttk
 
-from mongban import cad, export, frame, kl_excel, model
+from mongban import _meta, cad, export, frame, kl_excel, model
 
 APP_NAME = "VE_MONGBANKOSUON"
-APP_VER = "1.1.0"
+APP_VER = "1.2.0"
 
 
 def settings_path():
@@ -300,6 +300,10 @@ class App(tk.Tk):
 
         st = tk.Frame(self, background=C["navy"])
         st.pack(side="bottom", fill="x", before=pw)
+        self._cr = tk.Label(st, text=_meta.credit(), background=C["navy"], foreground="#F2B36B",
+                            font=(f[0], f[1] - 1, "bold"), padx=10, pady=3)
+        self._cr.pack(side="left")
+        tk.Frame(st, background="#3E5C82", width=1).pack(side="left", fill="y", pady=3)
         self.l_msg = tk.Label(st, text="", background=C["navy"], foreground="#E3ECF7", anchor="w",
                               font=(f[0], f[1] - 1), padx=10, pady=3)
         self.l_msg.pack(side="left", fill="x")
@@ -816,6 +820,17 @@ class App(tk.Tk):
             self.pending = {k: v for k, v in self.pending.items() if k not in ids}
             self._layout_changed()
 
+    def _guard(self):
+        """Dòng tác giả phải luôn hiển thị đúng."""
+        try:
+            if self._cr.cget("text") != _meta.credit() or not self._cr.winfo_ismapped():
+                self._cr.config(text=_meta.credit())
+                self._cr.pack(side="left", before=self._cr.master.winfo_children()[0])
+        except Exception:
+            self.destroy()
+            return
+        self.after(5000, self._guard)
+
     def on_close(self):
         try:
             p = self._collect()
@@ -900,8 +915,19 @@ class FieldsDialog(tk.Toplevel):
 
 
 def main():
+    try:
+        ok = _meta.check(cad._SIG)
+    except Exception:
+        ok = False
+    if not ok:
+        r = tk.Tk()
+        r.withdraw()
+        messagebox.showerror(APP_NAME, "Tệp chương trình đã bị thay đổi, không thể chạy.")
+        return
     cad.init_fonts()
-    App().mainloop()
+    app = App()
+    app.after(1500, app._guard)
+    app.mainloop()
 
 
 if __name__ == "__main__":

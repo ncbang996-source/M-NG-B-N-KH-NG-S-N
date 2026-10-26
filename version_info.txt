@@ -1,0 +1,17 @@
+# Thông tin phiên bản nhúng vào file exe (Properties > Details)
+VSVersionInfo(
+  ffi=FixedFileInfo(filevers=(1, 2, 0, 0), prodvers=(1, 2, 0, 0), mask=0x3f, flags=0x0, OS=0x40004,
+                    fileType=0x1, subtype=0x0, date=(0, 0)),
+  kids=[
+    StringFileInfo([StringTable('042A04B0', [
+      StringStruct('CompanyName', 'Nguyễn Công Bằng'),
+      StringStruct('FileDescription', 'VE_MONGBANKOSUON - Vẽ móng bản không sườn'),
+      StringStruct('FileVersion', '1.2.0'),
+      StringStruct('InternalName', 'VE_MONGBANKOSUON'),
+      StringStruct('LegalCopyright', '© Nguyễn Công Bằng. Tác giả: Nguyễn Công Bằng'),
+      StringStruct('OriginalFilename', 'VE_MONGBANKOSUON.exe'),
+      StringStruct('ProductName', 'VE_MONGBANKOSUON'),
+      StringStruct('ProductVersion', '1.2.0')])]),
+    VarFileInfo([VarStruct('Translation', [0x042A, 1200])])
+  ]
+)
