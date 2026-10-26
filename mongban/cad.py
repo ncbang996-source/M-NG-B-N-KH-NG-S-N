@@ -25,8 +25,10 @@ LAYERS = {
     "DAI":       (2, "CONTINUOUS", 40),  # thép đai, thép phân bố, lưới
     "COTTHEP":   (1, "CONTINUOUS", 50),  # thép chủ
 }
-STYLE = "ROBOTO"
-STYLE_B = "ROBOTO-B"
+STYLE = "ROBOTO_CONDENSED"
+STYLE_B = "ROBOTO_CONDENSED-B"
+FONT_R = "RobotoCondensed-Regular.ttf"   # font chữ bản vẽ
+FONT_B = "RobotoCondensed-Bold.ttf"
 
 
 def resource_dir() -> str:
@@ -52,7 +54,7 @@ def init_fonts():
 
 
 @lru_cache(maxsize=8)
-def _font(name="Roboto-Regular.ttf"):
+def _font(name=FONT_R):
     init_fonts()
     from ezdxf.fonts import fonts
     return fonts.make_font(name, 1.0)
@@ -62,7 +64,7 @@ def txtw(s: str, h: float, bold=False) -> float:
     """Bề rộng thật của dòng chữ (chiều cao chữ h)."""
     s = s.replace("%%C", "Ø").replace("%%c", "Ø").replace("%%P", "±").replace("%%p", "±")
     try:
-        return _font("Roboto-Bold.ttf" if bold else "Roboto-Regular.ttf").text_width(s) * h
+        return _font(FONT_B if bold else FONT_R).text_width(s) * h
     except Exception:
         return 0.62 * h * len(s)
 
@@ -75,9 +77,9 @@ def new_doc():
     doc.header["$PSLTSCALE"] = 0
     doc.header["$LWDISPLAY"] = 1
     if STYLE not in doc.styles:
-        doc.styles.new(STYLE, dxfattribs={"font": "Roboto-Regular.ttf"})
+        doc.styles.new(STYLE, dxfattribs={"font": FONT_R})
     if STYLE_B not in doc.styles:
-        doc.styles.new(STYLE_B, dxfattribs={"font": "Roboto-Bold.ttf"})
+        doc.styles.new(STYLE_B, dxfattribs={"font": FONT_B})
     for name, (col, lt, lw) in LAYERS.items():
         if name not in doc.layers:
             doc.layers.add(name, color=col, linetype=lt if lt in doc.linetypes else "CONTINUOUS", lineweight=lw)

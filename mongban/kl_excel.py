@@ -182,13 +182,16 @@ def export(p: dict, g: Geo, path: str):
     r += 1
     _cell(wk, r, 2, "TỔNG CỘNG THÉP", bold=True)
     _cell(wk, r, 8, f"=SUM(H{rs0}:H{rs1})", "0.00", bold=True)
+    rtot = r
     r += 2
     _cell(wk, r, 2, "Phân loại theo đường kính", bold=True, fill=HEAD)
     _cell(wk, r, 3, "Ø (mm)", bold=True, fill=HEAD)
     _cell(wk, r, 7, "Tổng dài (m)", bold=True, fill=HEAD)
     _cell(wk, r, 8, "KL (kg)", bold=True, fill=HEAD)
+    rdia = {}
     for d, _, _ in g.klc:
         r += 1
+        rdia[int(d + 0.5)] = r
         _cell(wk, r, 2, f"Thép Ø{int(d + 0.5)}")
         _cell(wk, r, 3, int(d + 0.5))
         _cell(wk, r, 7, f"=SUMIF($C${rs0}:$C${rs1},C{r},$G${rs0}:$G${rs1})", "0.00")
@@ -197,5 +200,48 @@ def export(p: dict, g: Geo, path: str):
     _cell(wk, r, 2, "Bu lông neo", bold=True)
     _cell(wk, r, 4, f"{model.bolt_text(p)}  ({p['BLN']})")
     wk.freeze_panes = "A4"
-    wb.active = 1
+    _summary(wb, p, g, rows, rdia, rtot)
+    wb.active = 0
     wb.save(path)
+
+
+def _summary(wb, p, g, rows, rdia, rtot):
+    """Sheet TONG KE: bảng tổng kê khối lượng 1 vị trí móng, mỗi số liệu 1 ô (theo mẫu)."""
+    ws = wb.create_sheet("TONG KE", 0)
+    K = "'KHOI LUONG'!"
+    cols = [(f"{p['BTM']} (m³)", f"={K}{rows['Vbt']}", "0.00"),
+            (f"{p['BTL']} (m³)", f"={K}{rows['Vlot']}", "0.00")]
+    for d in sorted(rdia):
+        cols.append((f"Ø{d}", f"={K}$H${rdia[d]}", "0.00"))
+    cols += [("TỔNG K.LƯỢNG THÉP (kg)", f"={K}$H${rtot}", "0.00")]
+    if p["HC"] > 1e-6:
+        cols += [("K.LƯỢNG ĐỆM CÁT (m³)", f"={K}{rows['Vcat']}", "0.00"),
+                 ("DIỆN TÍCH VẢI ĐỊA (m²)", f"={K}{rows['Svai']}", "0.00")]
+    cols += [("BULONG NEO", model.bolt_text(p), None),
+             ("Đào đất (m³)", f"={K}{rows['Vdao']}", "0.00"),
+             ("Đắp đất (m³)", f"={K}{rows['Vdap']}", "0.00"),
+             ("Ván khuôn (m²)", f"={K}{rows['VK']}", "0.00"),
+             ("Rộng đền bù (m)", "=TS_B+2*0.5", "0.00"),
+             ("Dài đền bù (m)", "=TS_L+2*0.5", "0.00"),
+             ("Diện đền bù (m²)", None, "0.00"),
+             ("Chiều sâu hố đào (m)", f"={K}{rows['Hd']}", "0.00")]
+    n = len(cols)
+    ws.page_setup.orientation = "landscape"           # in vừa 1 trang ngang
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.page_setup.fitToWidth, ws.page_setup.fitToHeight = 1, 0
+    ws.row_dimensions[1].height = 34
+    ws.row_dimensions[2].height = 64
+    ws.row_dimensions[3].height = 24
+    c = ws.cell(row=1, column=1, value="BẢNG TỔNG KÊ KHỐI LƯỢNG CHO 01 VỊ TRÍ MÓNG")
+    c.font = Font(size=14)
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n)
+    for j in range(1, n + 1):
+        ws.cell(row=1, column=j).border = BOX
+    from openpyxl.utils import get_column_letter as L
+    for j, (h, f, fmt) in enumerate(cols, 1):
+        ws.column_dimensions[L(j)].width = 11 if len(h) < 14 else 12.5
+        _cell(ws, 2, j, h, align=Alignment(horizontal="center", vertical="center", wrap_text=True))
+        if h.startswith("Diện đền bù"):
+            f = f"={L(j - 2)}3*{L(j - 1)}3"          # rộng đền bù x dài đền bù
+        _cell(ws, 3, j, f, fmt, align=Alignment(horizontal="center", vertical="center"))

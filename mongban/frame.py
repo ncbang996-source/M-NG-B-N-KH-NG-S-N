@@ -115,7 +115,7 @@ def _fix_fonts(doc):
         except Exception:
             ok = False
         if not ok:
-            st.dxf.font = "RobotoCondensed-Regular.ttf" if "cond" in f.lower() else "Roboto-Regular.ttf"
+            st.dxf.font = cad.FONT_R
 
 
 def setup_doc(doc):
@@ -127,9 +127,9 @@ def setup_doc(doc):
     if "MB_CENTER" not in doc.linetypes:
         doc.linetypes.add("MB_CENTER", pattern=[5.9, 4.0, -0.8, 0.3, -0.8], description="Truc ____ . ____ .")
     if cad.STYLE not in doc.styles:
-        doc.styles.new(cad.STYLE, dxfattribs={"font": "Roboto-Regular.ttf"})
+        doc.styles.new(cad.STYLE, dxfattribs={"font": cad.FONT_R})
     if cad.STYLE_B not in doc.styles:
-        doc.styles.new(cad.STYLE_B, dxfattribs={"font": "Roboto-Bold.ttf"})
+        doc.styles.new(cad.STYLE_B, dxfattribs={"font": cad.FONT_B})
     for name, (col, lt, lw) in cad.LAYERS.items():
         ltn = "MB_CENTER" if lt == "CENTER" else "CONTINUOUS"
         if name in doc.layers:
