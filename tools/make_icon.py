@@ -48,7 +48,7 @@ def box(d, x0, y0, z0, x1, y1, z1, col):
     poly(d, [(x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1)], shade(col, 1.06))   # mặt trên
 
 
-T = THEMES["xanh"]
+T = THEMES["la"]
 
 
 def background(side, c0, c1):
@@ -66,7 +66,7 @@ def background(side, c0, c1):
     return out
 
 
-def render(theme="xanh", size=SIZE):
+def render(theme="la", size=SIZE):
     global T
     T = THEMES[theme]
     im = Image.new("RGBA", (W, W), (0, 0, 0, 0))
@@ -102,7 +102,7 @@ def render(theme="xanh", size=SIZE):
     return sq.resize((size, size), Image.LANCZOS)
 
 
-def main(out, theme="xanh"):
+def main(out, theme="la"):
     im = render(theme)
     im.save(out, format="ICO", sizes=[(SIZE, SIZE)])
     im.save(os.path.splitext(out)[0] + ".png")
@@ -111,4 +111,4 @@ def main(out, theme="xanh"):
 if __name__ == "__main__":
     import sys
     main(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "icon.ico"),
-         sys.argv[1] if len(sys.argv) > 1 else "xanh")
+         sys.argv[1] if len(sys.argv) > 1 else "la")
